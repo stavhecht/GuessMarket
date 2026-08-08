@@ -1,5 +1,7 @@
 package engine.model;
 
+import java.io.Serializable;
+
 /**
  * The per-event Market Maker account.
  *
@@ -8,7 +10,9 @@ package engine.model;
  * winning share at settlement — so mixing operator revenue into it would destroy the
  * ability to check solvency with a single comparison.
  */
-public class Account {
+public class Account implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     private double balance;
     private double commissionCollected;

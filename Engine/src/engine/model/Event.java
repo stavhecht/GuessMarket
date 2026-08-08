@@ -1,5 +1,6 @@
 package engine.model;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -9,7 +10,9 @@ import java.util.List;
  * trade history. Everything that mutates market state goes through here, so the
  * invariants (trade numbering, close-once) can't be broken from outside.
  */
-public class Event {
+public class Event implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     /** This market is binary by construction. */
     public static final int OPTION_COUNT = 2;

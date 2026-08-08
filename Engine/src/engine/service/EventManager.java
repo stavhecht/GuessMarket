@@ -3,14 +3,22 @@ package engine.service;
 import engine.exception.EventNotFoundException;
 import engine.model.Event;
 
+import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Owns the loaded event collection. A new file replaces everything that came before. */
-public class EventManager {
+/**
+ * Owns the loaded event collection. A new file replaces everything that came before.
+ *
+ * <p>This is the whole of the system's mutable state, which is why saving and loading a
+ * session is a matter of writing this one object out and reading it back.
+ */
+public class EventManager implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     // LinkedHashMap so the UI lists events in file order rather than hash order.
     private final Map<Integer, Event> events = new LinkedHashMap<>();

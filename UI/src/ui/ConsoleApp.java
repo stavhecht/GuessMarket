@@ -18,8 +18,8 @@ import java.util.List;
 public class ConsoleApp {
 
     private static final int MENU_MIN = 1;
-    private static final int MENU_MAX = 6;
-    private static final int EXIT_CHOICE = 6;
+    private static final int MENU_MAX = 8;
+    private static final int EXIT_CHOICE = 8;
 
     private final MarketEngine engine;
     private final InputReader in = new InputReader();
@@ -42,10 +42,11 @@ public class ConsoleApp {
     }
 
     private void dispatch(int choice) {
-        // Every command except loading needs events, so the check happens once here
-        // instead of at the top of five handlers — and before any of them prompts.
-        if (choice != 1 && !engine.isFileLoaded()) {
-            out.printError("No events file is loaded yet. Choose 1 to load one first.");
+        // Every command except the two that bring events in (1 loads an XML file,
+        // 7 loads a saved session) needs events, so the check happens once here —
+        // and before any handler prompts for anything.
+        if (choice != 1 && choice != 7 && !engine.isFileLoaded()) {
+            out.printError("No events file is loaded yet! Choose 1 to load one first.");
             return;
         }
 
@@ -56,6 +57,8 @@ public class ConsoleApp {
                 case 3 -> handleEventStatus();
                 case 4 -> handleParticipate();
                 case 5 -> handleClose();
+                case 6 -> handleSaveSession();
+                case 7 -> handleLoadSession();
                 default -> out.printError("Unknown command.");
             }
         } catch (EngineException e) {
@@ -67,6 +70,16 @@ public class ConsoleApp {
         String path = in.readLine("Full path to the events XML file: ");
         engine.loadEventsFile(path);
         out.printMessage("\nFile loaded successfully!");
+    }
+
+    private void handleSaveSession() {
+        String path = in.readLine("Full path to save to, without an extension: ");
+        out.printMessage("\nSession saved to " + engine.saveState(path));
+    }
+
+    private void handleLoadSession() {
+        String path = in.readLine("Full path of the saved session, without an extension: ");
+        out.printMessage("\nSession loaded from " + engine.loadState(path));
     }
 
     private void handleShowEvents() {
@@ -127,7 +140,7 @@ public class ConsoleApp {
             if (number >= 1 && number <= options.size()) {
                 return number;
             }
-            out.printError("Please enter a number between 1 and " + options.size() + ".");
+            out.printError("Please enter a number between 1 and " + options.size());
         }
     }
 }

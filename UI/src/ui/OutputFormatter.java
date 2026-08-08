@@ -20,14 +20,15 @@ public class OutputFormatter {
     private static final String PRICE = "%.2f";
 
     public void printMenu() {
-        System.out.println();
         System.out.println("===== GuessMarket =====");
         System.out.println("1. Load events file");
         System.out.println("2. Show all events");
         System.out.println("3. Show event status");
         System.out.println("4. Participate in an event");
         System.out.println("5. Close an event");
-        System.out.println("6. Exit");
+        System.out.println("6. Save the current session to a file");
+        System.out.println("7. Load a saved session");
+        System.out.println("8. Exit");
     }
 
     public void printEvents(List<EventView> events) {
@@ -114,7 +115,8 @@ public class OutputFormatter {
 
     public void printError(String message) {
         System.out.println();
-        System.out.println("! " + message);
+        System.out.println(message);
+        System.out.println();
     }
 
     public void printMessage(String message) {
