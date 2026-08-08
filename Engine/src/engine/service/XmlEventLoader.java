@@ -4,13 +4,12 @@ import engine.exception.InvalidFileException;
 import engine.model.CommissionMethod;
 import engine.model.Event;
 import engine.model.Option;
-import engine.schema.Comision;
-import engine.schema.GMEvent;
-import engine.schema.GMEvents;
-import engine.schema.GMLMSR;
-import engine.schema.GMMethod;
-import engine.schema.GMOptions;
-import engine.schema.GuessMarket;
+import engine.schema.XmlCommission;
+import engine.schema.XmlCommissionType;
+import engine.schema.XmlEvent;
+import engine.schema.XmlGuessMarket;
+import engine.schema.XmlLmsr;
+import engine.schema.XmlMarketMethod;
 
 import jakarta.xml.bind.JAXBContext;
 import jakarta.xml.bind.JAXBException;
@@ -24,35 +23,30 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Reads an events file into domain objects.
+ * Reads an events file into domain objects, in three steps:
  *
- * <p>JAXB (against {@code GM-EX1-Schema.xsd}, generated into {@code engine.schema})
- * handles the parsing; this class handles everything the schema cannot express. That
- * split matters, because the XSD is far more permissive than the game rules:
+ * <ol>
+ *   <li>{@link #openXmlFile} — is there a readable {@code .xml} file at this path?</li>
+ *   <li>{@link #parse} — JAXB turns it into the {@code engine.schema} classes, whose
+ *       annotations hold the whole mapping from element to field.</li>
+ *   <li>{@link #toEvents} — the rules are applied and {@link Event}s are built.</li>
+ * </ol>
  *
- * <ul>
- *   <li>{@code comision} is a plain {@code xs:int} with no bounds — 115 is
- *       schema-valid, so the 0–90 rule is enforced here.</li>
- *   <li>{@code GM-option} is {@code maxOccurs="2"} but {@code minOccurs} defaults to 1,
- *       so a one-option event passes validation. The exactly-two rule is enforced here.</li>
- *   <li>Nothing in the schema forbids duplicate {@code id}s.</li>
- * </ul>
+ * <p>Step 3 exists because the XSD is far more permissive than the game: {@code comision}
+ * is a plain {@code xs:int}, so 115 parses fine; {@code GM-option} has
+ * {@code maxOccurs="2"} but no {@code minOccurs}, so a one-option event parses fine; and
+ * nothing forbids two events sharing an id. Unmarshalling is lenient in the same way —
+ * absent elements arrive as {@code null} and absent {@code xs:int}s as 0 — so every value
+ * is checked here rather than trusted.
  *
- * <p>Unmarshalling is also lenient: absent elements arrive as {@code null} and absent
- * {@code xs:int}s arrive as 0, so every field is checked before use rather than trusted.
- *
- * <p>Nothing here mutates engine state — a failed load throws before a single object
- * reaches {@link EventManager}, so the previously loaded file survives intact.
+ * <p>Nothing in this class touches engine state. A rejected file throws before a single
+ * object reaches {@link EventManager}, so the previously loaded file survives intact.
  */
 public class XmlEventLoader {
 
     private static final String XML_EXTENSION = ".xml";
 
-    /** Attribute values of {@code <comision type="...">}. */
-    private static final String TYPE_ON_PURCHASE = "on-purchase";
-    private static final String TYPE_ON_CLOSE = "on-close";
-
-    /** Commission in the file is a whole percentage, The spec caps it at 90. */
+    /** The file states a whole percentage, capped by the spec at 90. */
     private static final int MAX_COMMISSION_PERCENT = 90;
     private static final double PERCENT = 100.0;
 
@@ -61,183 +55,143 @@ public class XmlEventLoader {
 
     public XmlEventLoader() {
         try {
-            this.context = JAXBContext.newInstance(GuessMarket.class);
+            this.context = JAXBContext.newInstance(XmlGuessMarket.class);
         } catch (JAXBException e) {
             throw new IllegalStateException("Could not initialise the XML reader.", e);
         }
     }
 
+    /**
+     * @return the events in file order
+     * @throws InvalidFileException if the file cannot be read, is not the expected XML,
+     *                              or breaks one of the rules below
+     */
     public List<Event> load(String path) {
-        validateExtension(path);
-
-        File file = new File(path);
-        if (!file.isFile()) {
-            throw new InvalidFileException("No file found at: " + path);
-        }
-        if (!file.canRead()) {
-            throw new InvalidFileException("File exists but cannot be read: " + path);
-        }
-
-        GuessMarket root = unmarshal(file);
-        GMEvents gmEvents = root.getGMEvents();
-        if (gmEvents == null || gmEvents.getGMEvent().isEmpty()) {
-            throw new InvalidFileException("The file contains no events.");
-        }
-
-        List<Event> events = new ArrayList<>(gmEvents.getGMEvent().size());
-        for (GMEvent gmEvent : gmEvents.getGMEvent()) {
-            events.add(toDomain(gmEvent));
-        }
-        validateUniqueIds(events);
-        return events;
+        File file = openXmlFile(path);
+        XmlGuessMarket document = parse(file);
+        return toEvents(document.getEvents());
     }
 
-    private GuessMarket unmarshal(File file) {
+    // --- step 1: the file ---
+
+    private File openXmlFile(String path) {
+        require(path != null && !path.isBlank(), "Please enter a file path.");
+        require(path.toLowerCase(Locale.ROOT).endsWith(XML_EXTENSION),
+                "The file must be an XML file (ending in %s).", XML_EXTENSION);
+
+        File file = new File(path);
+        require(file.isFile(), "No file found at: %s", path);
+        require(file.canRead(), "File exists but cannot be read: %s", path);
+        return file;
+    }
+
+    // --- step 2: XML to the annotated classes ---
+
+    private XmlGuessMarket parse(File file) {
         try {
             Unmarshaller unmarshaller = context.createUnmarshaller();
-            Object result = unmarshaller.unmarshal(file);
-            if (!(result instanceof GuessMarket root)) {
-                throw new InvalidFileException("The file is not a Guess-Market events file.");
-            }
-            return root;
+            Object parsed = unmarshaller.unmarshal(file);
+            require(parsed instanceof XmlGuessMarket, "The file is not a Guess-Market events file.");
+            return (XmlGuessMarket) parsed;
         } catch (JAXBException e) {
+            // The linked exception is the SAX/parse error and says what is actually wrong.
             Throwable cause = e.getLinkedException() != null ? e.getLinkedException() : e;
             throw new InvalidFileException("The file could not be read as XML: " + cause.getMessage(), e);
         }
     }
 
-    /** Copies one generated {@code GMEvent} into a domain {@link Event}, validating as it goes. */
-    private Event toDomain(GMEvent gmEvent) {
-        String name = joinName(gmEvent.getName());
+    // --- step 3: the rules the schema cannot express ---
 
-        // id is a primitive int, so a missing <id> arrives as 0 rather than null.
-        int id = gmEvent.getId();
-        if (id <= 0) {
-            throw new InvalidFileException("Event '" + name + "' has a missing or non-positive id: " + id + ".");
+    private List<Event> toEvents(List<XmlEvent> xmlEvents) {
+        require(!xmlEvents.isEmpty(), "The file contains no events.");
+
+        List<Event> events = new ArrayList<>(xmlEvents.size());
+        Set<Integer> idsSeen = new HashSet<>();
+        for (XmlEvent xmlEvent : xmlEvents) {
+            Event event = toEvent(xmlEvent);
+            require(idsSeen.add(event.getId()),
+                    "Duplicate event id in the file: %d ('%s').", event.getId(), event.getName());
+            events.add(event);
         }
-
-        String description = gmEvent.getDescription();
-        if (description == null || description.isBlank()) {
-            throw new InvalidFileException("Event '" + name + "' has no description.");
-        }
-
-        Comision comision = gmEvent.getComision();
-        if (comision == null) {
-            throw new InvalidFileException("Event '" + name + "' has no commission.");
-        }
-        int percent = comision.getValue();
-        validateCommission(percent, name);
-        CommissionMethod method = parseCommissionMethod(comision.getType(), name);
-
-        double b = readLiquidity(gmEvent.getGMMethod(), name);
-
-        // Stored as a fraction (0.5), not a percentage (50), so it multiplies costs directly.
-        return new Event(id, name, description.trim(), percent / PERCENT, method, b, readOptions(gmEvent, name));
+        return events;
     }
 
-    /**
-     * The schema declares {@code name} as {@code xs:list}, so JAXB hands back the value
-     * split on whitespace — "Earth Quake on Dead Sea" arrives as five tokens. Rejoining
-     * restores the name the file actually contained.
-     */
-    private String joinName(List<String> nameTokens) {
-        if (nameTokens == null || nameTokens.isEmpty()) {
-            throw new InvalidFileException("An event is missing its 'name' attribute.");
-        }
-        String name = String.join(" ", nameTokens).trim();
-        if (name.isEmpty()) {
-            throw new InvalidFileException("An event has an empty 'name' attribute.");
-        }
-        return name;
+    private Event toEvent(XmlEvent xmlEvent) {
+        String name = xmlEvent.getName();
+        require(name != null && !name.isEmpty(), "An event is missing its 'name' attribute.");
+
+        int id = xmlEvent.getId();
+        require(id > 0, "Event '%s' has a missing or non-positive id: %d.", name, id);
+
+        String description = xmlEvent.getDescription();
+        require(description != null && !description.isEmpty(), "Event '%s' has no description.", name);
+
+        XmlCommission commission = xmlEvent.getCommission();
+        require(commission != null, "Event '%s' has no commission.", name);
+
+        return new Event(
+                id,
+                name,
+                description,
+                commissionRate(commission.getPercent(), name),
+                commissionMethod(commission.getType(), name),
+                liquidity(xmlEvent.getMethod(), name),
+                options(xmlEvent.getOptionNames(), name));
     }
 
-    /**
-     * Reads b from {@code <GM-method><GM-LMSR><b>}.
-     *
-     * <p>The {@code GM-method} wrapper exists so the schema can carry market-making
-     * methods other than LMSR later; anything else gets a clear message.
-     */
-    private double readLiquidity(GMMethod gmMethod, String eventName) {
-        if (gmMethod == null) {
-            throw new InvalidFileException("Event '" + eventName + "' has no market method.");
-        }
-        GMLMSR lmsr = gmMethod.getGMLMSR();
-        if (lmsr == null) {
-            throw new InvalidFileException("Event '" + eventName + "': the only supported market method is LMSR.");
-        }
-        int b = lmsr.getB();
-        if (b <= 0) {
-            throw new InvalidFileException("Event '" + eventName + "': b must be greater than 0, got " + b + ".");
-        }
-        return b;
+    /** The file states a whole percentage; the domain wants the fraction it multiplies costs by. */
+    private double commissionRate(int percent, String eventName) {
+        require(percent >= 0 && percent <= MAX_COMMISSION_PERCENT,
+                "Event '%s': commission must be between 0 and %d percent, got %d.",
+                eventName, MAX_COMMISSION_PERCENT, percent);
+        return percent / PERCENT;
     }
 
-    private Option[] readOptions(GMEvent gmEvent, String eventName) {
-        GMOptions gmOptions = gmEvent.getGMOptions();
-        if (gmOptions == null) {
-            throw new InvalidFileException("Event '" + eventName + "' has no options.");
-        }
+    private CommissionMethod commissionMethod(XmlCommissionType type, String eventName) {
+        require(type != null, "Event '%s': commission 'type' must be %s.",
+                eventName, XmlCommissionType.legalValues());
+        return switch (type) {
+            case ON_PURCHASE -> CommissionMethod.PER_PURCHASE;
+            case ON_CLOSE -> CommissionMethod.ON_CLOSE;
+        };
+    }
 
+    /** Reads b from {@code <GM-method><GM-LMSR><b>}, the only market maker the engine runs. */
+    private double liquidity(XmlMarketMethod method, String eventName) {
+        require(method != null, "Event '%s' has no market method.", eventName);
+
+        XmlLmsr lmsr = method.getLmsr();
+        require(lmsr != null, "Event '%s': the only supported market method is LMSR.", eventName);
+        require(lmsr.getB() > 0, "Event '%s': b must be greater than 0, got %d.", eventName, lmsr.getB());
+        return lmsr.getB();
+    }
+
+    private Option[] options(List<String> optionNames, String eventName) {
         // The schema allows 1 or 2 options (maxOccurs="2", minOccurs defaults to 1);
         // a binary market needs exactly 2.
-        List<String> names = gmOptions.getGMOption();
-        if (names.size() != Event.OPTION_COUNT) {
-            throw new InvalidFileException("Event '" + eventName + "' must have exactly " + Event.OPTION_COUNT
-                    + " options, found " + names.size() + ".");
-        }
+        require(optionNames.size() == Event.OPTION_COUNT,
+                "Event '%s' must have exactly %d options, found %d.",
+                eventName, Event.OPTION_COUNT, optionNames.size());
 
         Option[] options = new Option[Event.OPTION_COUNT];
-        for (int i = 0; i < names.size(); i++) {
-            String optionName = names.get(i) == null ? "" : names.get(i).trim();
-            if (optionName.isEmpty()) {
-                throw new InvalidFileException("Event '" + eventName + "' has an option with an empty name.");
-            }
+        for (int i = 0; i < optionNames.size(); i++) {
+            String optionName = optionNames.get(i);
+            require(optionName != null && !optionName.isEmpty(),
+                    "Event '%s' has an option with an empty name.", eventName);
             options[i] = new Option(optionName);
         }
-        if (options[0].getName().equalsIgnoreCase(options[1].getName())) {
-            throw new InvalidFileException("Event '" + eventName + "' has two options with the same name: "
-                    + options[0].getName() + ".");
-        }
+        require(!options[0].getName().equalsIgnoreCase(options[1].getName()),
+                "Event '%s' has two options with the same name: %s.", eventName, options[0].getName());
         return options;
     }
 
-    // --- rules the schema cannot express ---
-
-    private void validateExtension(String path) {
-        if (path == null || path.isBlank()) {
-            throw new InvalidFileException("Please enter a file path.");
+    /**
+     * States one rule per line: the condition that must hold, and what the user is told
+     * when it does not. {@code args} fill the {@code %s}/{@code %d} slots in the message.
+     */
+    private static void require(boolean rule, String message, Object... args) {
+        if (!rule) {
+            throw new InvalidFileException(args.length == 0 ? message : String.format(message, args));
         }
-        if (!path.toLowerCase(Locale.ROOT).endsWith(XML_EXTENSION)) {
-            throw new InvalidFileException("The file must be an XML file (ending in " + XML_EXTENSION + ").");
-        }
-    }
-
-    private void validateUniqueIds(List<Event> events) {
-        Set<Integer> seen = new HashSet<>();
-        for (Event event : events) {
-            if (!seen.add(event.getId())) {
-                throw new InvalidFileException("Duplicate event id in the file: " + event.getId()
-                        + " ('" + event.getName() + "').");
-            }
-        }
-    }
-
-    private void validateCommission(int percent, String eventName) {
-        if (percent < 0 || percent > MAX_COMMISSION_PERCENT) {
-            throw new InvalidFileException("Event '" + eventName + "': commission must be between 0 and "
-                    + MAX_COMMISSION_PERCENT + " percent, got " + percent + ".");
-        }
-    }
-
-    private CommissionMethod parseCommissionMethod(String raw, String eventName) {
-        if (raw == null) {
-            throw new InvalidFileException("Event '" + eventName + "': commission has no 'type'.");
-        }
-        return switch (raw.trim().toLowerCase(Locale.ROOT)) {
-            case TYPE_ON_PURCHASE -> CommissionMethod.PER_PURCHASE;
-            case TYPE_ON_CLOSE -> CommissionMethod.ON_CLOSE;
-            default -> throw new InvalidFileException("Event '" + eventName + "': unknown commission type '"
-                    + raw + "'. Expected " + TYPE_ON_PURCHASE + " or " + TYPE_ON_CLOSE + ".");
-        };
     }
 }

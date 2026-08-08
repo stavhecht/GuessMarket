@@ -4,7 +4,6 @@ import engine.dto.EventStatusView;
 import engine.dto.OptionView;
 import engine.exception.EngineException;
 import engine.service.MarketEngine;
-
 import java.util.List;
 
 /**
@@ -43,6 +42,13 @@ public class ConsoleApp {
     }
 
     private void dispatch(int choice) {
+        // Every command except loading needs events, so the check happens once here
+        // instead of at the top of five handlers — and before any of them prompts.
+        if (choice != 1 && !engine.isFileLoaded()) {
+            out.printError("No events file is loaded yet. Choose 1 to load one first.");
+            return;
+        }
+
         try {
             switch (choice) {
                 case 1 -> handleLoadFile();
@@ -60,16 +66,18 @@ public class ConsoleApp {
     private void handleLoadFile() {
         String path = in.readLine("Full path to the events XML file: ");
         engine.loadEventsFile(path);
-        out.printMessage("File loaded successfully.");
+        out.printMessage("\nFile loaded successfully!");
     }
 
     private void handleShowEvents() {
         out.printEvents(engine.getEvents());
+        in.waitForEnter();
     }
 
     private void handleEventStatus() {
         int eventId = in.readInt("Event id: ");
         out.printEventStatus(engine.getEventStatus(eventId));
+        in.waitForEnter();
     }
 
     private void handleParticipate() {

@@ -17,8 +17,7 @@ import java.util.List;
  */
 public class OutputFormatter {
 
-    private static final String MONEY = "%.2f";
-    private static final String PRICE = "%.4f";
+    private static final String PRICE = "%.2f";
 
     public void printMenu() {
         System.out.println();
@@ -37,7 +36,7 @@ public class OutputFormatter {
         for (EventView event : events) {
             System.out.printf("[%d] %s (%s)%n", event.id(), event.name(), event.status());
             System.out.println("    " + event.description());
-            System.out.printf("    Commission: " + MONEY + "%%  (%s)%n",
+            System.out.printf("    Commission: " + PRICE + "%%  (%s)%n",
                     event.commissionRate() * 100, event.commissionMethod());
             List<String> names = event.optionNames();
             for (int i = 0; i < names.size(); i++) {
@@ -57,8 +56,8 @@ public class OutputFormatter {
                     i + 1, option.name(), option.currentPrice(), option.totalShares());
         }
 
-        System.out.printf("  Account balance:      " + MONEY + "%n", status.accountBalance());
-        System.out.printf("  Commission collected: " + MONEY + "%n", status.commissionCollected());
+        System.out.printf("  Account balance:      " + PRICE + "%n", status.accountBalance());
+        System.out.printf("  Commission collected: " + PRICE + "%n", status.commissionCollected());
 
         if (status.closed()) {
             System.out.println("  Status: CLOSED — winner: " + status.winningOptionName());
@@ -82,7 +81,7 @@ public class OutputFormatter {
             return;
         }
         for (TradeView trade : history) {
-            System.out.printf("    %d shares of %-20s paid " + MONEY + "%n",
+            System.out.printf("    %d shares of %-20s paid " + PRICE + "%n",
                     trade.shares(), trade.optionName(), trade.pricePaid());
         }
     }
@@ -90,9 +89,9 @@ public class OutputFormatter {
     public void printPurchaseResult(PurchaseResult result) {
         System.out.println();
         System.out.printf("Bought %d shares of %s.%n", result.sharesBought(), result.optionName());
-        System.out.printf("  Shares cost: " + MONEY + "%n", result.sharesCost());
-        System.out.printf("  Commission:  " + MONEY + "%n", result.commission());
-        System.out.printf("  Total paid:  " + MONEY + "%n", result.totalPaid());
+        System.out.printf("  Shares cost: " + PRICE + "%n", result.sharesCost());
+        System.out.printf("  Commission:  " + PRICE + "%n", result.commission());
+        System.out.printf("  Total paid:  " + PRICE + "%n", result.totalPaid());
         printEventStatus(result.updatedStatus());
     }
 
@@ -106,11 +105,11 @@ public class OutputFormatter {
         }
         if (result.commissionMoved() > 0) {
             // Show the deduction, so it's clear where the winners' money went.
-            System.out.printf("  Gross winnings:    " + MONEY + "%n",
+            System.out.printf("  Gross winnings:    " + PRICE + "%n",
                     result.totalPaidToWinners() + result.commissionMoved());
-            System.out.printf("  Commission taken:  " + MONEY + "%n", result.commissionMoved());
+            System.out.printf("  Commission taken:  " + PRICE + "%n", result.commissionMoved());
         }
-        System.out.printf("  Paid to winners:   " + MONEY + "%n", result.totalPaidToWinners());
+        System.out.printf("  Paid to winners:   " + PRICE + "%n", result.totalPaidToWinners());
     }
 
     public void printError(String message) {

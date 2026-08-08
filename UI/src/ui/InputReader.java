@@ -63,6 +63,23 @@ public class InputReader {
         }
     }
 
+    /**
+     * Holds the screen until the user presses Enter, then returns.
+     *
+     * <p>Used after a listing so the menu does not redraw over it the instant it
+     * appears — the user decides when they are done reading. Whatever they type is
+     * discarded; only the Enter matters.
+     *
+     * <p>It is Enter rather than any single key because the console hands Java one
+     * whole line at a time. Reacting to a bare keypress means putting the terminal in
+     * raw mode, which is neither portable across macOS and Windows nor worth it here.
+     */
+    public void waitForEnter() {
+        System.out.println();
+        System.out.print("Press Enter to go back to the menu... ");
+        nextLine();
+    }
+
     /** Treats a closed stdin as an exit rather than letting the Scanner throw. */
     private String nextLine() {
         try {

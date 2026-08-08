@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The facade — the only engine class the UI imports.
+ * The front — the only engine class the UI imports.
  *
  * <p>Two rules hold throughout: every DTO is built here (the UI never constructs one),
  * and no value is ever rounded (formatting is the UI's job, so the account identity
@@ -31,7 +31,7 @@ public class MarketEngine {
     private final EventManager eventManager = new EventManager();
     private final LmsrCalculator lmsr = new LmsrCalculator();
     private final XmlEventLoader loader = new XmlEventLoader();
-    private boolean fileLoaded;
+    private boolean fileLoaded =  false;
 
     /**
      * Loads a new events file, replacing everything currently in memory.
@@ -44,6 +44,13 @@ public class MarketEngine {
         fileLoaded = true;
     }
 
+    /**
+     * Whether a file has been loaded successfully.
+     *
+     * <p>Lets the UI turn a command away before it prompts for anything, rather than
+     * collecting an event id and a share count only to fail on the engine call. The
+     * commands below still check for themselves — they can't trust a caller to have asked.
+     */
     public boolean isFileLoaded() {
         return fileLoaded;
     }
@@ -158,7 +165,7 @@ public class MarketEngine {
                 totalPaidToWinners);
     }
 
-    // --- internals ---
+    // --- internals/private methods ---
 
     private EventStatusView buildStatusView(Event event) {
         long q0 = event.getOption(0).getShares();
