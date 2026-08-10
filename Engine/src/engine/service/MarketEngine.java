@@ -159,6 +159,15 @@ public class MarketEngine {
         long q0 = event.getOption(0).getShares();
         long q1 = event.getOption(1).getShares();
 
+        // The LMSR itself is exact at any share count, but the outstanding count is a
+        // long: without this the total would wrap negative, and a negative q is a state
+        // the b·ln2 solvency proof says nothing about.
+        long alreadyIssued = optionIndex == 0 ? q0 : q1;
+        if (shares > Long.MAX_VALUE - alreadyIssued) {
+            throw new InvalidShareAmountException("That many shares would overflow the count for '"
+                    + event.getOption(optionIndex).getName() + "' (" + alreadyIssued + " already issued).");
+        }
+
         double sharesCost = lmsr.purchaseCost(q0, q1, optionIndex, shares, event.getB());
         double commission = event.getCommissionMethod() == CommissionMethod.PER_PURCHASE
                 ? sharesCost * event.getCommissionRate()
