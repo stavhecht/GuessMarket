@@ -3,6 +3,7 @@ package engine.service;
 import engine.exception.EventNotFoundException;
 import engine.model.Event;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
@@ -18,6 +19,7 @@ import java.util.Map;
  */
 public class EventManager implements Serializable {
 
+    @Serial
     private static final long serialVersionUID = 1L;
 
     // LinkedHashMap so the UI lists events in file order rather than hash order.

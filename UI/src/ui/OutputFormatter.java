@@ -5,7 +5,7 @@ import engine.dto.EventView;
 import engine.dto.OptionView;
 import engine.dto.PurchaseResult;
 import engine.dto.SettlementResult;
-import engine.dto.TradeView;
+import engine.model.Trade;                     //immutable
 
 import java.util.List;
 
@@ -75,15 +75,15 @@ public class OutputFormatter {
         printHistory(status.history());
     }
 
-    private void printHistory(List<TradeView> history) {
+    private void printHistory(List<Trade> history) {
         System.out.println("  Purchase history (newest first):");
         if (history.isEmpty()) {
             System.out.println("    (no purchases yet)");
             return;
         }
-        for (TradeView trade : history) {
+        for (Trade trade : history) {
             System.out.printf("    %d shares of %-20s paid " + PRICE + "%n",
-                    trade.shares(), trade.optionName(), trade.pricePaid());
+                    trade.shares(), trade.optionName(), trade.totalPaid());
         }
     }
 

@@ -1,5 +1,6 @@
 package engine.model;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -12,6 +13,7 @@ import java.util.List;
  */
 public class Event implements Serializable {
 
+    @Serial
     private static final long serialVersionUID = 1L;
 
     /** This market is binary by construction. */

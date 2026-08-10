@@ -5,7 +5,6 @@ import engine.dto.EventView;
 import engine.dto.OptionView;
 import engine.dto.PurchaseResult;
 import engine.dto.SettlementResult;
-import engine.dto.TradeView;
 import engine.exception.EventClosedException;
 import engine.exception.InvalidOptionException;
 import engine.exception.InvalidShareAmountException;
@@ -25,6 +24,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -238,12 +238,8 @@ public class MarketEngine {
                 new OptionView(event.getOption(0).getName(), prices[0], q0),
                 new OptionView(event.getOption(1).getName(), prices[1], q1));
 
-        List<Trade> trades = event.getTrades();
-        List<TradeView> history = new ArrayList<>(trades.size());
-        for (int i = trades.size() - 1; i >= 0; i--) {   // newest first
-            Trade trade = trades.get(i);
-            history.add(new TradeView(trade.optionName(), trade.shares(), trade.totalPaid()));
-        }
+        List<Trade> history = new ArrayList<>(event.getTrades());
+        Collections.reverse(history);   // newest first
 
         boolean closed = !event.isActive();
         Integer winner = event.getWinningOptionIndex();

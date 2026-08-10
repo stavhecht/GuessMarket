@@ -125,11 +125,11 @@ public class ConsoleApp {
     private EventStatusView readActiveEvent() {
         int eventId = in.readInt("Event id: ");
         EventStatusView status = engine.getEventStatus(eventId);   // throws on unknown id
-        out.printEventStatus(status);
         if (status.closed()) {
             out.printError("Event " + eventId + " is closed.");
             return null;
         }
+        out.printEventStatus(status);
         return status;
     }
 
