@@ -5,18 +5,26 @@ import engine.dto.EventView;
 import engine.dto.OptionView;
 import engine.dto.PurchaseResult;
 import engine.dto.SettlementResult;
-import engine.dto.TradeView;
 import engine.exception.EventClosedException;
 import engine.exception.InvalidOptionException;
 import engine.exception.InvalidShareAmountException;
 import engine.exception.NoFileLoadedException;
+import engine.exception.StateFileException;
 import engine.model.Account;
 import engine.model.CommissionMethod;
 import engine.model.Event;
 import engine.model.Option;
 import engine.model.Trade;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -28,7 +36,11 @@ import java.util.List;
  */
 public class MarketEngine {
 
-    private final EventManager eventManager = new EventManager();
+    /** Appended to the path the user gives, so they never have to type an extension. */
+    public static final String STATE_EXTENSION = ".gm";
+
+    /** Not final: loading a saved session replaces the whole collection at once. */
+    private EventManager eventManager = new EventManager();
     private final LmsrCalculator lmsr = new LmsrCalculator();
     private final XmlEventLoader loader = new XmlEventLoader();
     private boolean fileLoaded =  false;
@@ -42,6 +54,56 @@ public class MarketEngine {
         eventManager.loadEvents(events);
         eventManager.applyInitialSubsidies(lmsr);
         fileLoaded = true;
+    }
+
+    /**
+     * Writes the current session — every event with its prices, balances and trade
+     * history — to {@code path} plus {@value #STATE_EXTENSION}.
+     *
+     * <p>{@link EventManager} holds all of it and is {@link java.io.Serializable}, so one
+     * {@code writeObject} captures the lot. The user supplies the path without an
+     * extension, as the brief asks; typing one anyway is tolerated rather than doubled.
+     *
+     * @return the path of the file actually written, for the UI to report
+     */
+    public String saveState(String path) {
+        File file = stateFile(path);
+        try (ObjectOutputStream stream = new ObjectOutputStream(new FileOutputStream(file))) {
+            stream.writeObject(eventManager);
+            return file.getPath();
+        } catch (FileNotFoundException e) {
+            // What this really means here: the folder is missing, or is not writable.
+            throw new StateFileException("Could not write " + file.getPath()
+                    + ". Check that the folder exists and can be written to.", e);
+        } catch (IOException e) {
+            throw new StateFileException("Could not save to " + file.getPath() + ": " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Restores a session previously written by {@link #saveState}, replacing whatever is
+     * loaded now. An unreadable file leaves the current session untouched, because the
+     * field is only reassigned once the read has succeeded.
+     *
+     * @return the path of the file actually read, for the UI to report
+     */
+    public String loadState(String path) {
+        File file = stateFile(path);
+        try (ObjectInputStream stream = new ObjectInputStream(new FileInputStream(file))) {
+            eventManager = (EventManager) stream.readObject();
+            fileLoaded = true;
+            return file.getPath();
+        } catch (FileNotFoundException e) {
+            throw new StateFileException("There is no saved session at " + file.getPath() + ".", e);
+        } catch (IOException | ClassNotFoundException | ClassCastException e) {
+            throw new StateFileException("Could not load a saved session from " + file.getPath()
+                    + ": " + e.getMessage(), e);
+        }
+    }
+
+    private File stateFile(String path) {
+        String trimmed = path.trim();
+        return new File(trimmed.endsWith(STATE_EXTENSION) ? trimmed : trimmed + STATE_EXTENSION);
     }
 
     /**
@@ -96,6 +158,15 @@ public class MarketEngine {
 
         long q0 = event.getOption(0).getShares();
         long q1 = event.getOption(1).getShares();
+
+        // The LMSR itself is exact at any share count, but the outstanding count is a
+        // long: without this the total would wrap negative, and a negative q is a state
+        // the b·ln2 solvency proof says nothing about.
+        long alreadyIssued = optionIndex == 0 ? q0 : q1;
+        if (shares > Long.MAX_VALUE - alreadyIssued) {
+            throw new InvalidShareAmountException("That many shares would overflow the count for '"
+                    + event.getOption(optionIndex).getName() + "' (" + alreadyIssued + " already issued).");
+        }
 
         double sharesCost = lmsr.purchaseCost(q0, q1, optionIndex, shares, event.getB());
         double commission = event.getCommissionMethod() == CommissionMethod.PER_PURCHASE
@@ -176,12 +247,8 @@ public class MarketEngine {
                 new OptionView(event.getOption(0).getName(), prices[0], q0),
                 new OptionView(event.getOption(1).getName(), prices[1], q1));
 
-        List<Trade> trades = event.getTrades();
-        List<TradeView> history = new ArrayList<>(trades.size());
-        for (int i = trades.size() - 1; i >= 0; i--) {   // newest first
-            Trade trade = trades.get(i);
-            history.add(new TradeView(trade.optionName(), trade.shares(), trade.totalPaid()));
-        }
+        List<Trade> history = new ArrayList<>(event.getTrades());
+        Collections.reverse(history);   // newest first
 
         boolean closed = !event.isActive();
         Integer winner = event.getWinningOptionIndex();

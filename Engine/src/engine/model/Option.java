@@ -1,10 +1,16 @@
 package engine.model;
 
+import java.io.Serial;
+import java.io.Serializable;
+
 /**
  * One of the two outcomes of an event, holding the outstanding share count
  * (the {@code q_i} of the LMSR cost function).
  */
-public class Option {
+public class Option implements Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     private final String name;
     private long shares;

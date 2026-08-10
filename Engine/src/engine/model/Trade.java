@@ -1,5 +1,7 @@
 package engine.model;
 
+import java.io.Serializable;
+
 /**
  * An immutable record of one purchase, kept for the event's history.
  *
@@ -13,7 +15,7 @@ public record Trade(int sequence,
                     String optionName,
                     long shares,
                     double sharesCost,
-                    double commission) {
+                    double commission) implements Serializable {
 
     /** What the participant actually handed over. */
     public double totalPaid() {
