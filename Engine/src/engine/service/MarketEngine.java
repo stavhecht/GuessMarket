@@ -101,9 +101,14 @@ public class MarketEngine {
         }
     }
 
+    /**
+     * The path is normalised first ({@link UserPath}) — a Windows "Copy as path" arrives
+     * quoted, and {@code "C:\s\session"} + {@code .gm} would otherwise become
+     * {@code "C:\s\session".gm}, an extension the check below cannot even see.
+     */
     private File stateFile(String path) {
-        String trimmed = path.trim();
-        return new File(trimmed.endsWith(STATE_EXTENSION) ? trimmed : trimmed + STATE_EXTENSION);
+        String normalized = UserPath.normalize(path);
+        return new File(normalized.endsWith(STATE_EXTENSION) ? normalized : normalized + STATE_EXTENSION);
     }
 
     /**
