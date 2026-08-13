@@ -1,0 +1,6 @@
+Manifest-Version: 1.0
+Main-Class: ui.Main
+Class-Path: jakarta.xml.bind-api-4.0.2.jar jaxb-runtime-4.0.5.jar jaxb-c
+ ore-4.0.5.jar istack-commons-runtime-4.1.2.jar jakarta.activation-api-2
+ .1.3.jar angus-activation-2.0.2.jar
+

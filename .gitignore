@@ -3,6 +3,7 @@ out/
 !**/src/main/**/out/
 !**/src/test/**/out/
 .kotlin
+.idea
 
 ### Eclipse ###
 .apt_generated
@@ -32,4 +33,6 @@ bin/
 ## stav ##
 XMLexamples
 CLAUDE.md
-
+README.md
+README.pdf
+211794151_ex1/

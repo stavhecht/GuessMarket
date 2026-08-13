@@ -29,11 +29,6 @@ public enum XmlCommissionType {
         this.xmlValue = xmlValue;
     }
 
-    /** The spelling this value has in the file. */
-    public String xmlValue() {
-        return xmlValue;
-    }
-
     /** The legal spellings, for error messages: {@code "on-purchase" or "on-close"}. */
     public static String legalValues() {
         return Arrays.stream(values())

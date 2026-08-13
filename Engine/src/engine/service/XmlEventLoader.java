@@ -14,6 +14,7 @@ import engine.schema.XmlMarketMethod;
 import jakarta.xml.bind.JAXBContext;
 import jakarta.xml.bind.JAXBException;
 import jakarta.xml.bind.Unmarshaller;
+import jakarta.xml.bind.ValidationEvent;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -90,6 +91,7 @@ public class XmlEventLoader {
     private XmlGuessMarket parse(File file) {
         try {
             Unmarshaller unmarshaller = context.createUnmarshaller();
+            unmarshaller.setEventHandler(XmlEventLoader::isRecoverable);
             Object parsed = unmarshaller.unmarshal(file);
             require(parsed instanceof XmlGuessMarket, "The file is not a Guess-Market events file.");
             return (XmlGuessMarket) parsed;
@@ -98,6 +100,26 @@ public class XmlEventLoader {
             Throwable cause = e.getLinkedException() != null ? e.getLinkedException() : e;
             throw new InvalidFileException("The file could not be read as XML: " + cause.getMessage(), e);
         }
+    }
+
+    /**
+     * Decides which of JAXB's complaints the unmarshaller may carry on past.
+     *
+     * <p>By default it carries on past all of them, which is the one place a bad file can
+     * turn into plausible-looking data: a value it cannot convert is dropped and the field
+     * keeps its Java default. For {@code <id>} and {@code <b>} that default is 0 and the
+     * rules below reject it, but 0 is a perfectly legal commission — so
+     * {@code <comision>abc</comision>} would load as a 0% event rather than be reported.
+     *
+     * <p>A failed conversion is exactly the case that arrives with a linked exception (the
+     * {@code NumberFormatException} the parser caught), so those are refused and surface as
+     * an {@link InvalidFileException} naming the line. Everything else — an unexpected
+     * element, say — is let through on purpose: the rules below describe those in the
+     * file's own vocabulary, and a message like "the only supported market method is LMSR"
+     * beats JAXB's version of the same news.
+     */
+    private static boolean isRecoverable(ValidationEvent event) {
+        return event.getLinkedException() == null;
     }
 
     // --- step 3: the rules the schema cannot express ---

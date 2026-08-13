@@ -1,0 +1,12 @@
+<component name="ArtifactManager">
+  <artifact name="UI:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/UI_jar</output-path>
+    <root id="root">
+      <element id="archive" name="UI.jar">
+        <element id="module-output" name="Engine" />
+        <element id="module-output" name="UI" />
+      </element>
+      <element id="library" level="module" name="jaxb" module-name="Engine" />
+    </root>
+  </artifact>
+</component>

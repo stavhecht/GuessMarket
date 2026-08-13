@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="MarkdownSettings">
+    <option name="customStylesheetText" value="&lt;style&gt;&#10;  * {&#10;    color: #000000 !important;&#10;  }&#10;&lt;/style&gt;" />
+    <option name="useCustomStylesheetText" value="true" />
+  </component>
+</project>
