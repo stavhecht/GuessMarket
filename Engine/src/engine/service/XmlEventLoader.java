@@ -75,8 +75,13 @@ public class XmlEventLoader {
 
     // --- step 1: the file ---
 
-    private File openXmlFile(String path) {
-        require(path != null && !path.isBlank(), "Please enter a file path.");
+    private File openXmlFile(String rawPath) {
+        require(rawPath != null, "Please enter a file path.");
+
+        // Windows pastes the path in quotes, macOS pastes spaces escaped — either way the
+        // extension check below has to see the real path, not the wrapping.
+        String path = UserPath.normalize(rawPath);
+        require(!path.isBlank(), "Please enter a file path.");
         require(path.toLowerCase(Locale.ROOT).endsWith(XML_EXTENSION),
                 "The file must be an XML file (ending in %s).", XML_EXTENSION);
 
