@@ -24,8 +24,10 @@ public class Event implements Serializable {
     private final String description;
     private final double commissionRate;
     private final CommissionMethod commissionMethod;
-    private final double b;
+    private final TradingMethod tradingMethod;
     private final Option[] options;
+    /** Non-null exactly when this event trades on an order book. */
+    private final OrderBook orderBook;
     private final Account MMaccount = new Account();
     private final List<Trade> trades = new ArrayList<>();
 
@@ -38,17 +40,23 @@ public class Event implements Serializable {
                  String description,
                  double commissionRate,
                  CommissionMethod commissionMethod,
-                 double b,
+                 TradingMethod tradingMethod,
                  Option[] options) {
         if (options == null || options.length != OPTION_COUNT) {
             throw new IllegalArgumentException("An event must have exactly " + OPTION_COUNT + " options.");
+        }
+        if (tradingMethod == null) {
+            throw new IllegalArgumentException("An event must have a trading method.");
         }
         this.id = id;
         this.name = name;
         this.description = description;
         this.commissionRate = commissionRate;
         this.commissionMethod = commissionMethod;
-        this.b = b;
+        this.tradingMethod = tradingMethod;
+        this.orderBook = tradingMethod instanceof TradingMethod.OrderBook settings
+                ? new OrderBook(settings)
+                : null;
         this.options = options.clone();
     }
 
@@ -72,9 +80,48 @@ public class Event implements Serializable {
         return commissionMethod;
     }
 
-    /** The LMSR liquidity parameter. */
+    /** How this event is traded, and the settings that came with it. */
+    public TradingMethod getTradingMethod() {
+        return tradingMethod;
+    }
+
+    /** Whether this event is priced by the LMSR, i.e. whether {@link #getB()} means anything. */
+    public boolean isLmsr() {
+        return tradingMethod instanceof TradingMethod.Lmsr;
+    }
+
+    /** Whether this event trades on an order book, i.e. whether {@link #getOrderBook()} means anything. */
+    public boolean isOrderBook() {
+        return tradingMethod instanceof TradingMethod.OrderBook;
+    }
+
+    /**
+     * This event's order book.
+     *
+     * @throws IllegalStateException if this event is not an order-book market — check
+     *                               {@link #isOrderBook()} first, for the reason
+     *                               {@link #getB()} says
+     */
+    public OrderBook getOrderBook() {
+        if (orderBook == null) {
+            throw new IllegalStateException("Event " + id + " is not an order-book market.");
+        }
+        return orderBook;
+    }
+
+    /**
+     * The LMSR liquidity parameter.
+     *
+     * @throws IllegalStateException if this event is not an LMSR market — check
+     *                               {@link #isLmsr()} first. A caller that gets this
+     *                               wrong has a bug, not a bad file, so it is not an
+     *                               {@code EngineException}.
+     */
     public double getB() {
-        return b;
+        if (!(tradingMethod instanceof TradingMethod.Lmsr lmsr)) {
+            throw new IllegalStateException("Event " + id + " is not an LMSR market, so it has no b.");
+        }
+        return lmsr.b();
     }
 
     public Option getOption(int index) {

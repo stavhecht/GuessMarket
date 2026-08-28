@@ -17,8 +17,14 @@ import java.util.List;
  *   <GM-events>
  *     <GM-event .../>
  *   </GM-events>
+ *   <GM-users>
+ *     <GM-user .../>
+ *   </GM-users>
  * </Guess-Market>
  * }</pre>
+ *
+ * <p>The schema declares the two sections as an {@code xs:all}, so a file may write them
+ * in either order; JAXB matches by name and does not care.
  */
 @XmlRootElement(name = "Guess-Market")
 @XmlAccessorType(XmlAccessType.FIELD)
@@ -33,8 +39,18 @@ public class XmlGuessMarket {
     @XmlElement(name = "GM-event")
     private List<XmlEvent> events = new ArrayList<>();
 
+    /** The same wrapper trick for {@code <GM-users>}. */
+    @XmlElementWrapper(name = "GM-users", required = true)
+    @XmlElement(name = "GM-user")
+    private List<XmlUser> users = new ArrayList<>();
+
     /** Never {@code null}: an absent or empty {@code <GM-events>} reads as no events. */
     public List<XmlEvent> getEvents() {
         return events == null ? List.of() : events;
+    }
+
+    /** Never {@code null}: an absent or empty {@code <GM-users>} reads as no users. */
+    public List<XmlUser> getUsers() {
+        return users == null ? List.of() : users;
     }
 }

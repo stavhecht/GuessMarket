@@ -1,7 +1,8 @@
-package ui;
+package ui.console;
 
 import engine.dto.EventStatusView;
 import engine.dto.OptionView;
+import engine.dto.UserView;
 import engine.exception.EngineException;
 import engine.service.MarketEngine;
 import java.util.List;
@@ -18,8 +19,12 @@ import java.util.List;
 public class ConsoleApp {
 
     private static final int MENU_MIN = 1;
-    private static final int MENU_MAX = 8;
-    private static final int EXIT_CHOICE = 8;
+    private static final int MENU_MAX = 10;
+    private static final int EXIT_CHOICE = 10;
+
+    /** The two commands that bring a file in; everything else needs one already loaded. */
+    private static final int LOAD_FILE_CHOICE = 1;
+    private static final int LOAD_SESSION_CHOICE = 9;
 
     private final MarketEngine engine;
     private final InputReader in = new InputReader();
@@ -31,7 +36,7 @@ public class ConsoleApp {
 
     public void run() {
         while (true) {
-            out.printMenu();
+            out.printMenu(engine.getCurrentUserName());
             int choice = in.readMenuChoice(MENU_MIN, MENU_MAX);
             if (choice == EXIT_CHOICE) {
                 out.printMessage("Goodbye, hope to see you soon.");
@@ -43,9 +48,9 @@ public class ConsoleApp {
 
     private void dispatch(int choice) {
         // Every command except the two that bring events in (1 loads an XML file,
-        // 7 loads a saved session) needs events, so the check happens once here —
+        // 9 loads a saved session) needs events, so the check happens once here —
         // and before any handler prompts for anything.
-        if (choice != 1 && choice != 7 && !engine.isFileLoaded()) {
+        if (choice != LOAD_FILE_CHOICE && choice != LOAD_SESSION_CHOICE && !engine.isFileLoaded()) {
             out.printError("No events file is loaded yet! Choose 1 to load one first.");
             return;
         }
@@ -53,17 +58,40 @@ public class ConsoleApp {
         try {
             switch (choice) {
                 case 1 -> handleLoadFile();
-                case 2 -> handleShowEvents();
-                case 3 -> handleEventStatus();
-                case 4 -> handleParticipate();
-                case 5 -> handleClose();
-                case 6 -> handleSaveSession();
-                case 7 -> handleLoadSession();
+                case 2 -> handleSelectUser();
+                case 3 -> handleShowEvents();
+                case 4 -> handleEventStatus();
+                case 5 -> handleParticipate();
+                case 6 -> handleShowAccount();
+                case 7 -> handleClose();
+                case 8 -> handleSaveSession();
+                case 9 -> handleLoadSession();
                 default -> out.printError("Unknown command.");
             }
         } catch (EngineException e) {
             out.printError(e.getMessage());
         }
+    }
+
+    /**
+     * Picks who the console acts as. The users are numbered on screen and chosen by
+     * number, so a name with a space in it never has to be typed.
+     */
+    private void handleSelectUser() {
+        List<UserView> users = engine.getUsers();
+        out.printUsers(users);
+
+        int number = in.readInt("Pick a user (1-" + users.size() + "): ");
+        if (number < 1 || number > users.size()) {
+            out.printError("Please enter a number between 1 and " + users.size() + ".");
+            return;
+        }
+        out.printMessage("\nNow acting as " + engine.selectUser(users.get(number - 1).name()).name() + ".");
+    }
+
+    private void handleShowAccount() {
+        out.printAccount(engine.getAccount());
+        in.waitForEnter();
     }
 
     private void handleLoadFile() {

@@ -1,0 +1,636 @@
+/*
+ * The desktop app's whole stylesheet.
+ *
+ * The design names every colour once, as a token, and every theme redefines the same set.
+ * Those tokens are JavaFX *looked-up colours* — the `-gm-name` declarations on `.root`
+ * below — so a theme is one block that redefines them and nothing else has to change.
+ * A node resolves `-gm-accent` by walking up its parents until it finds a declaration,
+ * which is why putting `theme-dark` on the root re-colours everything under it.
+ *
+ * Themes are applied by `Theme.applyTo`, which swaps a single style class on the node:
+ * `.root` alone is Light, `.root.theme-dark` is Dark, `.root.theme-neon` is Neon. The
+ * theme blocks come after this one on purpose — same specificity, so the later rule wins.
+ *
+ * Two things a looked-up colour cannot carry, because JavaFX only looks up paints:
+ * corner radii and font families. Those are written literally here at their Light values,
+ * and the Neon block at the bottom restates the handful of rules that change them.
+ *
+ * JavaFX has no `text-transform` and no `letter-spacing`, so the two places the design
+ * leans on them — the small-caps labels, and Neon's shouting buttons — are uppercased in
+ * Java by `Widgets` instead.
+ *
+ * This is JavaFX CSS, not the web's, and the IDE lints it as the web's. It tolerates every
+ * `-fx-` and `-gm-` property as a vendor prefix, but `segments(...)` — JavaFX's dashed
+ * border pattern — is a function no browser has, so the two rules that use it carry a
+ * `/*noinspection CssInvalidFunction* /` line. Nothing is wrong with them; JavaFX parses
+ * them fine. (The same goes for the half-pixel font sizes it warns about: JavaFX honours
+ * them.)
+ */
+
+/* ---------- design tokens (Light) ---------- */
+
+.root {
+    -gm-bg: #E9ECEE;
+    -gm-chrome: #F6F7F8;
+    -gm-surface: #FFFFFF;
+    -gm-surface-2: #FAFBFB;
+    -gm-sunken: #F1F3F4;
+    -gm-line: #E1E5E8;
+    -gm-line-2: #EDF0F2;
+    -gm-tx: #1A2025;
+    -gm-tx-2: #5C666E;
+    -gm-tx-3: #8C959D;
+    -gm-accent: #0B8AA8;
+    -gm-accent-bg: #E7F3F7;
+    -gm-accent-line: #B6DCE5;
+    -gm-up: #16824C;
+    -gm-up-bg: #E8F4EE;
+    -gm-down: #B24427;
+    -gm-down-bg: #FAEDE8;
+    -gm-shadow: rgba(16, 24, 32, 0.22);
+
+    -fx-background-color: -gm-bg;
+    -fx-font-family: 'Segoe UI', 'Helvetica Neue', Helvetica, system-ui, sans-serif;
+    -fx-font-size: 12px;
+    -fx-text-fill: -gm-tx;
+    -fx-focus-color: -gm-accent;
+    -fx-faint-focus-color: transparent;
+}
+
+/* Light needs no overrides — it is the block above. The class exists so that every theme
+   is named the same way, both here and in Theme. */
+.theme-light { }
+
+.theme-dark {
+    -gm-bg: #14171A;
+    -gm-chrome: #22272B;
+    -gm-surface: #1C2124;
+    -gm-surface-2: #21262A;
+    -gm-sunken: #191D20;
+    -gm-line: #31383D;
+    -gm-line-2: #282E32;
+    -gm-tx: #E3E8EB;
+    -gm-tx-2: #9FA9B0;
+    -gm-tx-3: #78828A;
+    -gm-accent: #27A8C4;
+    -gm-accent-bg: #123138;
+    -gm-accent-line: #1E4C58;
+    -gm-up: #40B37B;
+    -gm-up-bg: #14301F;
+    -gm-down: #D97757;
+    -gm-down-bg: #33201A;
+    -gm-shadow: rgba(0, 0, 0, 0.45);
+}
+
+.theme-neon {
+    -gm-bg: #08010F;
+    -gm-chrome: #17032B;
+    -gm-surface: #100122;
+    -gm-surface-2: #1B0538;
+    -gm-sunken: #0B0119;
+    -gm-line: #4B1D8F;
+    -gm-line-2: #2C0E58;
+    -gm-tx: #F4EBFF;
+    -gm-tx-2: #B79BE8;
+    -gm-tx-3: #8360C6;
+    -gm-accent: #FF2FD0;
+    -gm-accent-bg: #3A0140;
+    -gm-accent-line: #FF2FD0;
+    -gm-up: #00F5A0;
+    -gm-up-bg: #022F27;
+    -gm-down: #FF6B3D;
+    -gm-down-bg: #3A1015;
+    -gm-shadow: rgba(255, 47, 208, 0.35);
+}
+
+/* ---------- foundations ---------- */
+
+.label { -fx-text-fill: -gm-tx; }
+
+/* Type roles. The design's scale: 15/600 subject, 13/600 section, 12/400 body,
+   11/650 caps header, and every number in mono. */
+.h-panel   { -fx-font-size: 15px; -fx-font-weight: 600; }
+.h-section { -fx-font-size: 13px; -fx-font-weight: 600; }
+.h-caps    { -fx-font-size: 11px; -fx-font-weight: 700; -fx-text-fill: -gm-tx-2; }
+.h-tiny    { -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+             -fx-font-size: 9.5px; -fx-text-fill: -gm-tx-3; }
+.muted     { -fx-text-fill: -gm-tx-2; -fx-font-size: 12px; }
+.faint     { -fx-text-fill: -gm-tx-3; -fx-font-size: 12px; }
+.note      { -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+             -fx-font-size: 10.5px; -fx-text-fill: -gm-tx-3; }
+.mono      { -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+             -fx-font-size: 11px; }
+.num       { -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+             -fx-font-size: 11px; -fx-text-fill: -gm-tx; }
+.num-big   { -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+             -fx-font-size: 20px; -fx-font-weight: 600; }
+.up        { -fx-text-fill: -gm-up; }
+.down      { -fx-text-fill: -gm-down; }
+.accented  { -fx-text-fill: -gm-accent; }
+.strong    { -fx-font-weight: 600; }
+
+/* ---------- window chrome ---------- */
+
+.toolstrip {
+    -fx-background-color: -gm-surface;
+    -fx-border-color: -gm-line; -fx-border-width: 0 0 1 0;
+    -fx-padding: 0 14 0 14; -fx-min-height: 52; -fx-pref-height: 52;
+}
+/* The file field in the tool strip: recessed, so it reads as a readout and not a button. */
+.sunken {
+    -fx-background-color: -gm-sunken;
+    -fx-border-color: -gm-line; -fx-border-width: 1;
+    -fx-background-radius: 4; -fx-border-radius: 4;
+}
+.workspace { -fx-background-color: -gm-bg; -fx-padding: 14; }
+.statusbar {
+    -fx-background-color: -gm-chrome;
+    -fx-border-color: -gm-line; -fx-border-width: 1 0 0 0;
+    -fx-padding: 7 14 7 14; -fx-min-height: 30;
+}
+
+/* ---------- panels and cards ---------- */
+
+.panel {
+    -fx-background-color: -gm-surface;
+    -fx-border-color: -gm-line; -fx-border-width: 1;
+    -fx-background-radius: 6; -fx-border-radius: 6;
+}
+.panel-head {
+    -fx-padding: 0 12 0 12; -fx-min-height: 38; -fx-pref-height: 38;
+    -fx-border-color: -gm-line; -fx-border-width: 0 0 1 0;
+}
+.panel-body { -fx-padding: 12; }
+.subbar {
+    -fx-background-color: -gm-surface-2;
+    -fx-border-color: -gm-line; -fx-border-width: 0 0 1 0;
+    -fx-padding: 8 12 8 12;
+}
+.card {
+    -fx-background-color: -gm-surface-2;
+    -fx-border-color: -gm-line; -fx-border-width: 1;
+    -fx-background-radius: 5; -fx-border-radius: 5;
+    -fx-padding: 10 12 10 12;
+}
+.framed {
+    -fx-border-color: -gm-line; -fx-border-width: 1;
+    -fx-background-radius: 5; -fx-border-radius: 5;
+    -fx-background-color: -gm-surface;
+}
+.footer-strip {
+    -fx-background-color: -gm-sunken;
+    -fx-border-color: -gm-line; -fx-border-width: 1 0 0 0;
+    -fx-padding: 8 12 8 12;
+}
+.divider { -fx-background-color: -gm-line; -fx-min-height: 1; -fx-max-height: 1; }
+
+/* ---------- buttons ---------- */
+
+.button {
+    -fx-font-family: 'Segoe UI', 'Helvetica Neue', Helvetica, system-ui, sans-serif;
+    -fx-font-size: 12.5px;
+    -fx-min-height: 30; -fx-pref-height: 30; -fx-padding: 0 12 0 12;
+    -fx-background-color: -gm-surface; -fx-text-fill: -gm-tx;
+    -fx-border-color: -gm-line; -fx-border-width: 1;
+    -fx-background-radius: 4; -fx-border-radius: 4;
+    -fx-cursor: hand;
+}
+.button:hover { -fx-border-color: -gm-tx-3; }
+.button:disabled {
+    -fx-background-color: -gm-sunken; -fx-text-fill: -gm-tx-3;
+    -fx-border-color: -gm-line-2; -fx-opacity: 1; -fx-cursor: default;
+}
+.button.primary {
+    -fx-background-color: -gm-accent; -fx-text-fill: white; -fx-font-weight: 600;
+    -fx-border-color: -gm-accent; -fx-border-width: 1; -fx-padding: 0 14 0 14;
+}
+.button.primary:hover {
+    -fx-background-color: derive(-gm-accent, 14%); -fx-border-color: derive(-gm-accent, 14%);
+}
+.button.primary:disabled {
+    -fx-background-color: -gm-sunken; -fx-text-fill: -gm-tx-3; -fx-border-color: -gm-line-2;
+}
+.button.ghost {
+    -fx-background-color: transparent; -fx-border-color: transparent; -fx-text-fill: -gm-accent;
+}
+.button.ghost:hover { -fx-border-color: -gm-accent-line; }
+.button.danger { -fx-text-fill: -gm-down; }
+.button.danger:hover { -fx-border-color: -gm-down; }
+.button.small {
+    -fx-min-height: 26; -fx-pref-height: 26; -fx-font-size: 12px; -fx-padding: 0 10 0 10;
+}
+.button.small:hover { -fx-border-color: -gm-accent-line; -fx-text-fill: -gm-accent; }
+.button.tiny {
+    -fx-min-height: 22; -fx-pref-height: 22; -fx-font-size: 10.5px;
+    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-padding: 0 8 0 8; -fx-text-fill: -gm-tx-2;
+}
+.button.tiny:hover { -fx-border-color: -gm-accent-line; -fx-text-fill: -gm-accent; }
+/* Taking a side: Buy is the primary action, Sell only shows its colour on hover. */
+.button.buy {
+    -fx-background-color: -gm-accent; -fx-border-color: -gm-accent; -fx-border-width: 1;
+    -fx-text-fill: white; -fx-font-weight: 600;
+}
+.button.buy:hover {
+    -fx-background-color: derive(-gm-accent, 14%); -fx-border-color: derive(-gm-accent, 14%);
+}
+.button.sell {
+    -fx-background-color: -gm-surface; -fx-border-color: -gm-line; -fx-text-fill: -gm-tx;
+}
+.button.sell:hover {
+    -fx-background-color: -gm-down-bg; -fx-border-color: -gm-down; -fx-text-fill: -gm-down;
+}
+.button.buy:disabled, .button.sell:disabled {
+    -fx-background-color: -gm-sunken; -fx-text-fill: -gm-tx-3; -fx-border-color: -gm-line-2;
+}
+
+/* Segmented pair: the option A / option B chooser on the trade forms. */
+.toggle-button {
+    -fx-font-size: 12px; -fx-min-height: 28; -fx-pref-height: 28; -fx-padding: 0 12 0 12;
+    -fx-background-color: -gm-surface; -fx-text-fill: -gm-tx-2;
+    -fx-border-color: -gm-line; -fx-border-width: 1;
+    -fx-background-radius: 4; -fx-border-radius: 4; -fx-cursor: hand;
+}
+.toggle-button:hover { -fx-border-color: -gm-tx-3; }
+.toggle-button:selected {
+    -fx-background-color: -gm-accent-bg; -fx-text-fill: -gm-accent;
+    -fx-border-color: -gm-accent-line; -fx-font-weight: 600;
+}
+.toggle-button:disabled {
+    -fx-background-color: -gm-sunken; -fx-text-fill: -gm-tx-3; -fx-opacity: 1;
+}
+
+/* ---------- fields ---------- */
+
+.text-field {
+    -fx-background-color: -gm-surface; -fx-text-fill: -gm-tx; -fx-prompt-text-fill: -gm-tx-3;
+    -fx-border-color: -gm-line; -fx-border-width: 1;
+    -fx-background-radius: 4; -fx-border-radius: 4;
+    -fx-min-height: 30; -fx-pref-height: 30; -fx-padding: 0 10 0 10;
+    -fx-font-size: 12px; -fx-highlight-fill: -gm-accent-bg; -fx-highlight-text-fill: -gm-tx;
+}
+.text-field:focused {
+    -fx-border-color: -gm-accent;
+    -fx-effect: dropshadow(gaussian, -gm-accent-line, 6, 0.55, 0, 0);
+}
+.text-field.qty {
+    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-alignment: center-right;
+}
+
+.combo-box {
+    -fx-background-color: -gm-surface;
+    -fx-border-color: -gm-line; -fx-border-width: 1;
+    -fx-background-radius: 4; -fx-border-radius: 4;
+    -fx-min-height: 26; -fx-pref-height: 26; -fx-padding: 0; -fx-cursor: hand;
+}
+.combo-box:hover { -fx-border-color: -gm-tx-3; }
+.combo-box > .list-cell {
+    -fx-background-color: transparent; -fx-text-fill: -gm-tx;
+    -fx-font-size: 12px; -fx-padding: 0 4 0 8;
+}
+.combo-box > .arrow-button { -fx-background-color: transparent; -fx-padding: 0 6 0 2; }
+.combo-box > .arrow-button > .arrow { -fx-background-color: -gm-tx-3; -fx-padding: 3 4 3 4; }
+.combo-box-popup > .list-view {
+    -fx-background-color: -gm-surface; -fx-border-color: -gm-line; -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, -gm-shadow, 14, 0, 0, 5);
+}
+.combo-box-popup > .list-view > .virtual-flow > .clipped-container > .sheet > .list-cell {
+    -fx-background-color: -gm-surface; -fx-text-fill: -gm-tx;
+    -fx-font-size: 12px; -fx-padding: 5 10 5 10;
+}
+.combo-box-popup > .list-view > .virtual-flow > .clipped-container > .sheet > .list-cell:filled:hover,
+.combo-box-popup > .list-view > .virtual-flow > .clipped-container > .sheet > .list-cell:filled:selected {
+    -fx-background-color: -gm-accent-bg; -fx-text-fill: -gm-accent;
+}
+
+/* ---------- status pills ---------- */
+
+.pill {
+    -fx-font-size: 10.5px; -fx-font-weight: 600; -fx-padding: 2 6 2 6;
+    -fx-background-radius: 3; -fx-border-radius: 3;
+}
+.pill.ok    { -fx-text-fill: -gm-up;   -fx-background-color: -gm-up-bg; }
+.pill.off   { -fx-text-fill: -gm-tx-3; -fx-background-color: -gm-sunken; }
+.pill.warn  { -fx-text-fill: -gm-down; -fx-background-color: -gm-down-bg; }
+.pill.mark  {
+    -fx-text-fill: -gm-accent; -fx-background-color: -gm-accent-bg;
+    -fx-border-color: -gm-accent-line; -fx-border-width: 1; -fx-padding: 1 6 1 6;
+}
+.pill.plain {
+    -fx-text-fill: -gm-tx-2; -fx-background-color: -gm-sunken; -fx-font-weight: 400;
+}
+.pill.count {
+    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-font-weight: 400; -fx-text-fill: -gm-tx-3;
+    -fx-background-color: -gm-sunken; -fx-padding: 2 5 2 5;
+}
+
+/* ---------- tables ---------- */
+
+.table-view {
+    -fx-background-color: transparent; -fx-background-insets: 0; -fx-padding: 0;
+    -fx-table-cell-border-color: transparent;
+}
+.table-view:focused { -fx-background-color: transparent; -fx-background-insets: 0; }
+.table-view > .virtual-flow > .corner { -fx-background-color: -gm-surface-2; }
+.table-view .column-header-background {
+    -fx-background-color: -gm-surface-2;
+    -fx-border-color: -gm-line; -fx-border-width: 0 0 1 0;
+}
+.table-view .column-header, .table-view .filler {
+    -fx-background-color: transparent; -fx-size: 26;
+    -fx-border-color: transparent; -fx-padding: 0;
+}
+.table-view .column-header .label {
+    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-font-size: 9.5px; -fx-text-fill: -gm-tx-3;
+    -fx-alignment: center-left; -fx-padding: 0 8 0 8;
+}
+.table-view .table-row-cell {
+    -fx-background-color: -gm-surface; -fx-cell-size: 28; -fx-padding: 0;
+    -fx-border-color: transparent transparent -gm-line-2 transparent; -fx-border-width: 0 0 1 0;
+}
+.table-view .table-row-cell:hover { -fx-background-color: -gm-surface-2; }
+.table-view .table-row-cell:selected {
+    -fx-background-color: -gm-accent, -gm-accent-bg;
+    -fx-background-insets: 0, 0 0 0 2;
+}
+.table-view .table-row-cell:selected > .table-cell {
+    -fx-text-fill: -gm-tx; -fx-font-weight: 600;
+}
+.table-view .table-row-cell:empty {
+    -fx-background-color: transparent; -fx-border-color: transparent;
+}
+.table-view .table-cell {
+    -fx-font-size: 12px; -fx-text-fill: -gm-tx; -fx-padding: 0 8 0 8;
+    -fx-border-color: transparent; -fx-alignment: center-left;
+}
+.table-view .table-cell.numeric {
+    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-font-size: 11px; -fx-alignment: center-right;
+}
+.table-view .table-cell.ident {
+    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-font-size: 11px; -fx-text-fill: -gm-tx-3;
+}
+.table-view .placeholder .label { -fx-text-fill: -gm-tx-3; -fx-font-size: 12px; }
+
+/* ---------- tabs ---------- */
+
+.tab-pane {
+    -fx-tab-min-height: 37; -fx-tab-max-height: 37;
+    -fx-open-tab-animation: none; -fx-close-tab-animation: none;
+}
+.tab-pane > .tab-header-area { -fx-padding: 0 14 0 14; }
+.tab-pane > .tab-header-area > .tab-header-background {
+    -fx-background-color: -gm-surface;
+    -fx-border-color: -gm-line; -fx-border-width: 0 0 1 0;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab {
+    -fx-background-color: transparent; -fx-background-insets: 0; -fx-background-radius: 0;
+    -fx-padding: 0 16 0 16;
+    -fx-border-color: transparent transparent transparent transparent; -fx-border-width: 0 0 2 0;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab:selected {
+    -fx-border-color: transparent transparent -gm-accent transparent;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab .tab-label {
+    -fx-font-size: 13px; -fx-text-fill: -gm-tx-2;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab:selected .tab-label {
+    -fx-text-fill: -gm-accent; -fx-font-weight: 600;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab:selected > .focus-indicator {
+    -fx-border-width: 0; -fx-border-color: transparent;
+}
+.tab-pane > .tab-content-area { -fx-background-color: -gm-bg; }
+
+/* ---------- option cards (LMSR) ---------- */
+
+.opt-card {
+    -fx-background-color: -gm-surface;
+    -fx-border-color: -gm-line; -fx-border-width: 1;
+    -fx-background-radius: 5; -fx-border-radius: 5;
+}
+.opt-head {
+    -fx-padding: 9 10 9 10; -fx-background-color: -gm-surface-2;
+    -fx-border-color: -gm-line; -fx-border-width: 0 0 1 0;
+}
+.opt-body { -fx-padding: 10; }
+.opt-foot {
+    -fx-padding: 9 10 9 10; -fx-background-color: -gm-surface-2;
+    -fx-border-color: -gm-line; -fx-border-width: 1 0 0 0;
+}
+.opt-name  { -fx-font-size: 12px; -fx-font-weight: 600; }
+.opt-price {
+    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-font-size: 15px; -fx-font-weight: 600; -fx-text-fill: -gm-tx;
+}
+.meter {
+    -fx-background-color: -gm-sunken; -fx-background-radius: 3;
+    -fx-min-height: 6; -fx-pref-height: 6; -fx-max-height: 6;
+}
+.meter-fill { -fx-background-color: -gm-accent; -fx-background-radius: 3; }
+.meter-fill.other { -fx-background-color: -gm-tx-3; }
+.kv-key { -fx-font-size: 11.5px; -fx-text-fill: -gm-tx-2; }
+.kv-val {
+    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-font-size: 11.5px; -fx-text-fill: -gm-tx;
+}
+.text-field.mini {
+    -fx-min-height: 26; -fx-pref-height: 26; -fx-padding: 0 8 0 8;
+    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-font-size: 11.5px; -fx-alignment: center-right;
+}
+.button.compact {
+    -fx-min-height: 26; -fx-pref-height: 26; -fx-font-size: 12px; -fx-padding: 0 14 0 14;
+}
+
+/* ---------- order book ladder ---------- */
+
+.stat-strip {
+    -fx-background-color: -gm-sunken;
+    -fx-border-color: -gm-line; -fx-border-width: 0 0 1 0;
+    -fx-padding: 7 10 7 10;
+}
+.stat-val {
+    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-font-size: 11.5px; -fx-font-weight: 600; -fx-text-fill: -gm-tx;
+}
+.ladder-head {
+    -fx-padding: 0 10 0 10; -fx-min-height: 20; -fx-pref-height: 20;
+    -fx-border-color: transparent transparent -gm-line-2 transparent; -fx-border-width: 0 0 1 0;
+}
+.ladder-band {
+    -fx-padding: 0 10 0 10; -fx-min-height: 20; -fx-pref-height: 20;
+    -fx-background-color: -gm-surface-2;
+    -fx-border-color: transparent transparent -gm-line-2 transparent; -fx-border-width: 0 0 1 0;
+}
+.band-ask { -fx-text-fill: -gm-down; -fx-font-weight: 600; }
+.band-bid { -fx-text-fill: -gm-up;   -fx-font-weight: 600; }
+.ladder-row { -fx-padding: 0 10 0 10; -fx-min-height: 22; -fx-pref-height: 22; }
+.ladder-row:hover { -fx-opacity: 0.88; }
+.ladder-empty {
+    -fx-padding: 0 10 0 10; -fx-min-height: 22; -fx-pref-height: 22;
+    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-font-size: 10.5px; -fx-text-fill: -gm-tx-3;
+}
+/*noinspection CssInvalidFunction*/
+.spread-row {
+    -fx-padding: 0 10 0 10; -fx-min-height: 22; -fx-pref-height: 22;
+    -fx-background-color: -gm-sunken;
+    -fx-border-color: -gm-line; -fx-border-width: 1 0 1 0;
+    -fx-border-style: segments(3, 3) segments(3, 3) segments(3, 3) segments(3, 3);
+}
+.trade-row {
+    -fx-padding: 8 10 8 10; -fx-background-color: -gm-surface-2;
+    -fx-border-color: -gm-line; -fx-border-width: 1 0 0 0;
+}
+
+/* ---------- position bars ---------- */
+
+.bar-track {
+    -fx-background-color: -gm-sunken; -fx-background-radius: 3;
+    -fx-min-height: 8; -fx-pref-height: 8; -fx-max-height: 8;
+}
+.bar-fill { -fx-background-color: -gm-accent; -fx-background-radius: 3; }
+.bar-fill.ghost { -fx-background-color: -gm-accent-line; -fx-background-radius: 3; }
+
+/* ---------- progress ---------- */
+
+.progress-bar {
+    -fx-min-height: 8; -fx-pref-height: 8; -fx-max-height: 8;
+    -fx-background-color: transparent; -fx-padding: 0;
+    -fx-indeterminate-bar-animation-time: 1.2;
+}
+.progress-bar > .track {
+    -fx-background-color: -gm-surface; -fx-background-insets: 0; -fx-padding: 0;
+    -fx-border-color: -gm-line; -fx-border-width: 1;
+    -fx-background-radius: 4; -fx-border-radius: 4;
+}
+.progress-bar > .bar {
+    -fx-background-color: -gm-accent; -fx-background-insets: 1;
+    -fx-background-radius: 4; -fx-padding: 0;
+}
+.pct {
+    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-font-size: 11.5px; -fx-font-weight: 600; -fx-text-fill: -gm-accent;
+}
+
+/* ---------- the FXML mirror's chart stand-in ----------
+ *
+ * Nothing in the app wears this class. SparkChart takes its height as a constructor
+ * argument and paints on a Canvas, so Scene Builder cannot instantiate it — DesktopApp.fxml
+ * stands a plain Pane in its place, and this is what marks that hole out as a chart. */
+
+/*noinspection CssInvalidFunction*/
+.chart-slot {
+    -fx-border-color: -gm-line-2; -fx-border-width: 1;
+    -fx-border-style: segments(4, 4) segments(4, 4) segments(4, 4) segments(4, 4);
+}
+
+/* ---------- scrollbars ---------- */
+
+.scroll-bar { -fx-background-color: transparent; -fx-padding: 2; }
+.scroll-bar > .track, .scroll-bar > .track-background {
+    -fx-background-color: transparent; -fx-border-color: transparent;
+}
+.scroll-bar > .thumb { -fx-background-color: -gm-line; -fx-background-radius: 4; }
+.scroll-bar > .thumb:hover { -fx-background-color: -gm-tx-3; }
+.scroll-bar > .increment-button, .scroll-bar > .decrement-button {
+    -fx-background-color: transparent; -fx-padding: 0;
+}
+.scroll-bar > .increment-button > .increment-arrow,
+.scroll-bar > .decrement-button > .decrement-arrow { -fx-shape: null; -fx-padding: 0; }
+.scroll-pane { -fx-background-color: transparent; -fx-background-insets: 0; -fx-padding: 0; }
+.scroll-pane > .viewport { -fx-background-color: transparent; }
+
+/* ---------- dialogs ---------- */
+
+.gm-dialog { -fx-background-color: -gm-surface; }
+.gm-dialog .label { -fx-text-fill: -gm-tx; -fx-font-size: 12px; }
+.gm-dialog > .header-panel {
+    -fx-background-color: -gm-surface-2;
+    -fx-border-color: -gm-line; -fx-border-width: 0 0 1 0;
+}
+.gm-dialog > .header-panel .label {
+    -fx-font-size: 14px; -fx-font-weight: 600; -fx-text-fill: -gm-tx;
+}
+.gm-dialog > .button-bar > .container { -fx-background-color: -gm-surface; }
+.gm-dialog .content.label { -fx-text-fill: -gm-tx; }
+
+.tooltip {
+    -fx-background-color: -gm-tx; -fx-text-fill: -gm-surface; -fx-font-size: 11px;
+    -fx-background-radius: 4; -fx-padding: 5 8 5 8;
+}
+
+/* ---------- Neon: the tokens a looked-up colour cannot carry ----------
+ *
+ * Everything above this line is Light's radii and fonts, and Dark keeps them. Neon is the
+ * one theme that also changes shape and typeface, and JavaFX only looks up paints — so its
+ * radii, border widths and font families have to be restated. They are grouped by token
+ * rather than by component, so each block below is one of Neon's overrides in full. */
+
+/* font: 'Space Grotesk' */
+.theme-neon,
+.theme-neon .button {
+    -fx-font-family: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
+}
+
+/* mono: 'IBM Plex Mono' */
+.theme-neon .h-tiny,
+.theme-neon .note,
+.theme-neon .mono,
+.theme-neon .num,
+.theme-neon .num-big,
+.theme-neon .button.tiny,
+.theme-neon .text-field.qty,
+.theme-neon .text-field.mini,
+.theme-neon .pill.count,
+.theme-neon .kv-val,
+.theme-neon .opt-price,
+.theme-neon .stat-val,
+.theme-neon .ladder-empty,
+.theme-neon .pct,
+.theme-neon .table-view .column-header .label,
+.theme-neon .table-view .table-cell.numeric,
+.theme-neon .table-view .table-cell.ident {
+    -fx-font-family: 'IBM Plex Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+}
+
+/* r: 999 — the pill-shaped controls */
+.theme-neon .button,
+.theme-neon .toggle-button,
+.theme-neon .text-field,
+.theme-neon .combo-box,
+.theme-neon .progress-bar > .track,
+.theme-neon .tooltip {
+    -fx-background-radius: 999; -fx-border-radius: 999;
+}
+.theme-neon .progress-bar > .bar { -fx-background-radius: 999; }
+
+/* r-card: 0 and r-panel: 0 — square panels */
+.theme-neon .card,
+.theme-neon .framed,
+.theme-neon .opt-card,
+.theme-neon .panel,
+.theme-neon .sunken {
+    -fx-background-radius: 0; -fx-border-radius: 0;
+}
+
+/* r-pill: 999 — the meters and bars */
+.theme-neon .pill,
+.theme-neon .meter,
+.theme-neon .meter-fill,
+.theme-neon .bar-track,
+.theme-neon .bar-fill,
+.theme-neon .bar-fill.ghost {
+    -fx-background-radius: 999; -fx-border-radius: 999;
+}
+
+/* btn-bw: 2 — the filled buttons wear a thicker edge */
+.theme-neon .button.primary,
+.theme-neon .button.buy {
+    -fx-border-width: 2;
+}

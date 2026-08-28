@@ -1,7 +1,12 @@
-package ui;
+package ui.console;
 
 import java.util.NoSuchElementException;
 import java.util.Scanner;
+import engine.dto.EventStatusView;
+import engine.dto.OptionView;
+import engine.exception.EngineException;
+import engine.service.MarketEngine;
+import java.util.List;
 
 /**
  * The only class in the application that reads from the console.
