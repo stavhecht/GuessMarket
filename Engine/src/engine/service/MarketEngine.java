@@ -15,6 +15,7 @@ import engine.dto.SettlementResult;
 import engine.dto.UserView;
 import engine.exception.EventClosedException;
 import engine.exception.InsufficientFundsException;
+import engine.exception.InvalidEventException;
 import engine.exception.InvalidOptionException;
 import engine.exception.InvalidShareAmountException;
 import engine.exception.NoFileLoadedException;
@@ -34,6 +35,7 @@ import engine.model.Order;
 import engine.model.OrderBook;
 import engine.model.OrderSide;
 import engine.model.Trade;
+import engine.model.TradingMethod;
 import engine.model.User;
 
 import java.io.File;
@@ -62,6 +64,9 @@ public class MarketEngine {
     /** What one share of the winning option pays at settlement in an LMSR market. */
     private static final double LMSR_SHARE_VALUE = 1.0;
 
+    /** Commission is stated as a whole percentage, the same way a file states it. */
+    private static final double PERCENT = 100.0;
+
     /** Not final: loading a saved session replaces the whole collection at once. */
     private EventManager eventManager = new EventManager();
     private final LmsrCalculator lmsr = new LmsrCalculator();
@@ -87,6 +92,142 @@ public class MarketEngine {
         eventManager.applyInitialAllocations(executor);
         currentUserName = null;   // the new file has its own users
         fileLoaded = true;
+    }
+
+    /**
+     * Creates an LMSR event in the market already loaded, run by whoever is acting.
+     *
+     * <p>The event is subsidised the moment it exists — {@code b·ln2} into its own account,
+     * the provable worst case of the scoring rule — so it is solvent before anyone can trade
+     * on it. That money comes from the house, not from the creator, and it is the one
+     * documented exception to the conservation identity.
+     *
+     * @param b the liquidity parameter; a file can only state a whole number, but nothing in
+     *          the market requires one
+     * @return the event as the UI sees it
+     */
+    public EventView createLmsrEvent(String name, String description, int commissionPercent,
+                                     CommissionMethod commissionMethod, List<String> optionNames,
+                                     double b) {
+        requireFileLoaded();
+        User creator = requireSelectedUser();
+
+        // --- validate; nothing has been touched yet ---
+        String eventName = normalise(name);
+        String eventDescription = normalise(description);
+        Option[] options = validateDefinition(eventName, eventDescription, commissionPercent,
+                commissionMethod, optionNames);
+        requireEvent(b > 0, "b must be greater than 0, got " + b + ".");
+
+        Event event = new Event(eventManager.nextEventId(), eventName, eventDescription,
+                commissionPercent / PERCENT, commissionMethod, new TradingMethod.Lmsr(b), options);
+
+        // --- commit ---
+        eventManager.addEvent(event);
+        creator.addMarketMakerEvent(event.getId());
+        // This event alone: applyInitialSubsidies would pay every LMSR event a second time.
+        eventManager.subsidise(event, lmsr);
+        return viewOf(event);
+    }
+
+    /**
+     * Creates an order-book event in the market already loaded, run and funded by whoever is
+     * acting.
+     *
+     * <p>Unlike an LMSR event this one costs its creator money: they are its Market Maker, so
+     * {@code initialInvestment} leaves their balance for the event's account and comes back
+     * to them as {@code initialInvestment / d} shares of each option, offered straight back
+     * to the market at {@code d/2} a side. Nothing is created or destroyed — the identity
+     * holds across this call exactly.
+     *
+     * <p>An investment of 0 is allowed and opens an empty book, as a file may also do.
+     *
+     * @return the event as the UI sees it
+     */
+    public EventView createOrderBookEvent(String name, String description, int commissionPercent,
+                                          CommissionMethod commissionMethod, List<String> optionNames,
+                                          int initialInvestment, int d, boolean allowMint) {
+        requireFileLoaded();
+        User creator = requireSelectedUser();
+
+        // --- validate; nothing has been touched yet ---
+        String eventName = normalise(name);
+        String eventDescription = normalise(description);
+        Option[] options = validateDefinition(eventName, eventDescription, commissionPercent,
+                commissionMethod, optionNames);
+        requireEvent(d > 0, "the base value d must be greater than 0, got " + d + ".");
+        requireEvent(initialInvestment >= 0,
+                "the initial investment cannot be negative, got " + initialInvestment + ".");
+        requireEvent(initialInvestment % d == 0, "the initial investment of " + initialInvestment
+                + " must be a whole multiple of the base value " + d + ".");
+        // The creator's balance now, not the cash the file started them with: they may have
+        // spent it since, and it is today's money that funds the book.
+        requireEvent(creator.getBalance() >= initialInvestment,
+                "'" + creator.getName() + "' holds "
+                        + String.format("%.2f", creator.getBalance())
+                        + " and cannot fund an initial investment of " + initialInvestment + ".");
+
+        Event event = new Event(eventManager.nextEventId(), eventName, eventDescription,
+                commissionPercent / PERCENT, commissionMethod,
+                new TradingMethod.OrderBook(allowMint, initialInvestment, d), options);
+
+        // --- commit ---
+        eventManager.addEvent(event);
+        // Before the allocation: it is the market-maker link that entitles them to fund it.
+        creator.addMarketMakerEvent(event.getId());
+        // This event alone: applyInitialAllocations would re-fund every other one.
+        eventManager.allocateInitial(event, creator, executor);
+        return viewOf(event);
+    }
+
+    /**
+     * The rules both kinds of created event share, applied before anything is built.
+     *
+     * <p>These are the loader's rules, restated. {@code XmlEventLoader} cannot be reused for
+     * them because it is shaped around a file — it parses, then validates what it parsed —
+     * and none of this came from one. Keep the two in step: an event typed into the desktop
+     * app and an event read from XML have to be the same kind of thing.
+     *
+     * @return the two options, ready for the event
+     */
+    private Option[] validateDefinition(String name, String description, int commissionPercent,
+                                        CommissionMethod commissionMethod, List<String> optionNames) {
+        requireEvent(!name.isEmpty(), "an event needs a name.");
+        requireEvent(!description.isEmpty(), "event '" + name + "' needs a description.");
+        requireEvent(commissionMethod != null, "event '" + name + "' needs a commission method.");
+        requireEvent(commissionPercent >= 0 && commissionPercent <= Event.MAX_COMMISSION_PERCENT,
+                "commission must be between 0 and " + Event.MAX_COMMISSION_PERCENT
+                        + " percent, got " + commissionPercent + ".");
+        requireEvent(optionNames != null && optionNames.size() == Event.OPTION_COUNT,
+                "an event must have exactly " + Event.OPTION_COUNT + " options.");
+
+        Option[] options = new Option[Event.OPTION_COUNT];
+        for (int i = 0; i < Event.OPTION_COUNT; i++) {
+            String optionName = normalise(optionNames.get(i));
+            requireEvent(!optionName.isEmpty(), "an option cannot have an empty name.");
+            options[i] = new Option(optionName);
+        }
+        requireEvent(!options[0].getName().equalsIgnoreCase(options[1].getName()),
+                "both options are called '" + options[0].getName() + "'.");
+        return options;
+    }
+
+    /** Reads like the loader's {@code require}, and throws the runtime twin of its exception. */
+    private static void requireEvent(boolean condition, String problem) {
+        if (!condition) {
+            throw new InvalidEventException("Cannot create the event: " + problem);
+        }
+    }
+
+    /**
+     * Trims and squeezes runs of whitespace, the way {@code NormalizedTextAdapter} does on
+     * the way out of a file — so a name typed with a stray double space becomes the same
+     * event name an XML file would have produced. {@code null} reads as empty and is then
+     * refused by the caller with a message about the field rather than a
+     * {@code NullPointerException}.
+     */
+    private static String normalise(String text) {
+        return text == null ? "" : text.trim().replaceAll("\\s+", " ");
     }
 
     /**
@@ -192,18 +333,23 @@ public class MarketEngine {
         requireFileLoaded();
         List<EventView> views = new ArrayList<>();
         for (Event event : eventManager.getAllEvents()) {
-            views.add(new EventView(
-                    event.getId(),
-                    event.getName(),
-                    event.getDescription(),
-                    event.getCommissionRate(),
-                    event.getCommissionMethod().name(),
-                    event.isLmsr() ? "LMSR" : "ORDER_BOOK",
-                    marketMakerName(event.getId()),
-                    List.of(event.getOption(0).getName(), event.getOption(1).getName()),
-                    event.getStatus().name()));
+            views.add(viewOf(event));
         }
         return views;
+    }
+
+    /** One event as the UI sees it, the same way whether it was listed or just created. */
+    private EventView viewOf(Event event) {
+        return new EventView(
+                event.getId(),
+                event.getName(),
+                event.getDescription(),
+                event.getCommissionRate(),
+                event.getCommissionMethod().name(),
+                event.isLmsr() ? "LMSR" : "ORDER_BOOK",
+                marketMakerName(event.getId()),
+                List.of(event.getOption(0).getName(), event.getOption(1).getName()),
+                event.getStatus().name());
     }
 
     public EventStatusView getEventStatus(int eventId) {
@@ -214,15 +360,21 @@ public class MarketEngine {
     }
 
     /**
-     * What both options were priced at after each purchase in an LMSR event, oldest first.
+     * What both options were priced at when the event opened and after each purchase since,
+     * oldest first.
      *
      * <p>An LMSR price is a function of how many shares exist rather than of anything the
      * trade log records, so the series cannot be read off the history the way an order
      * book's can — it has to be replayed through {@link LmsrCalculator}, and that belongs
      * on this side of the facade rather than in a UI.
      *
-     * @return one {@code {priceOfOption0, priceOfOption1}} pair per trade; empty if nothing
-     *         has been bought yet
+     * <p>The replay starts at no shares at all, which is a real price and the one the market
+     * opened at — 0.5 on each side of a binary event, whatever {@code b} is — so the series
+     * begins there rather than at the first transaction. An event nobody has traded has a
+     * price, and a chart of one should say so instead of being empty.
+     *
+     * @return {@code {priceOfOption0, priceOfOption1}} at the open, then one pair per trade;
+     *         never empty for an event that exists
      */
     public List<double[]> getPriceHistory(int eventId) {
         requireFileLoaded();
@@ -236,6 +388,7 @@ public class MarketEngine {
         List<double[]> series = new ArrayList<>();
         long q0 = 0;
         long q1 = 0;
+        series.add(lmsr.prices(q0, q1, b));     // the open: nothing bought, nothing implied
         for (Trade trade : oldestFirst) {
             if (trade.optionName().equals(firstOption)) {
                 q0 += trade.shares();
@@ -586,10 +739,16 @@ public class MarketEngine {
         Collections.reverse(history);   // newest first
         Integer winner = event.getWinningOptionIndex();
 
+        // Only an event that was given an initial investment ever had an opening quote; one
+        // that was not opened with an empty book, and its chart has nothing to start from.
+        Double openingPrice = event.getTradingMethod() instanceof TradingMethod.OrderBook settings
+                && settings.initialInvestment() > 0 ? settings.openingPrice() : null;
+
         return new OrderBookStatusView(
                 event.getId(),
                 event.getName(),
                 book.getD(),
+                openingPrice,
                 book.allowsMint(),
                 marketMakerName(event.getId()),
                 event.getMMAccount().getBalance(),

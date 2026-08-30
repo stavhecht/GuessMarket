@@ -8,8 +8,10 @@ import javafx.animation.PauseTransition;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
-import javafx.geometry.Pos;
+import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
 import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ChoiceDialog;
@@ -17,18 +19,16 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
-import javafx.scene.layout.VBox;
 import javafx.scene.shape.Circle;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
 import java.io.File;
+import java.io.IOException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -52,8 +52,21 @@ import java.util.function.Supplier;
  * reason in the status bar and leaves the window as it was, in the same spirit as
  * {@code ConsoleApp.dispatch} catching {@code EngineException} in exactly one place.
  * Don't add try/catch to the individual handlers.
+ *
+ * <p><b>The fixed shell of the window comes from {@code DesktopApp.fxml}</b>, loaded in
+ * {@link #start}: the file bar, the tab pane and the status line are built by
+ * {@link FXMLLoader} and injected into the {@code @FXML} fields below, and this class then
+ * only wires the behaviour onto them. What the loader cannot build is everything generated
+ * from the loaded market — table rows, the option cards, the ladder, the chart — so the two
+ * tabs' bodies are still {@link EventsScreen} and {@link UsersScreen}, constructed here and
+ * dropped into the tabs the FXML declared. The layout file spells those bodies out anyway,
+ * with one representative row of each kind, so that Scene Builder shows the real design
+ * rather than two empty boxes; those stand-ins are what {@code setContent} replaces.
  */
 public class DesktopApp extends Application {
+
+    /** The layout file, beside this class. Named once so the failure message can quote it. */
+    private static final String LAYOUT = "DesktopApp.fxml";
 
     private static MarketEngine sharedEngine;
 
@@ -65,15 +78,25 @@ public class DesktopApp extends Application {
     private Scene scene;
     private Theme theme = Theme.LIGHT;
 
-    private Button themeToggle;
     private final List<Circle> tinted = new ArrayList<>();
-    private Label fileState;
-    private Label filePath;
-    private Circle loadedMark;
-    private ProgressBar loading;
-    private Label percent;
-    private Label status;
-    private Label actingAs;
+
+    // Everything below is injected out of DesktopApp.fxml by name: the field name here is
+    // the fx:id there. Rename one and you must rename the other — the compiler cannot see
+    // into the layout file, so a mismatch is a null at start-up, not a build error.
+    @FXML private Button loadFile;
+    @FXML private Button saveSession;
+    @FXML private Button loadSession;
+    @FXML private Button themeToggle;
+    @FXML private Label fileState;
+    @FXML private Label filePath;
+    @FXML private Circle loadedMark;
+    @FXML private ProgressBar loading;
+    @FXML private Label percent;
+    @FXML private Label status;
+    @FXML private Label actingAs;
+    @FXML private TabPane tabs;
+    @FXML private Tab eventsTab;
+    @FXML private Tab usersTab;
 
     /** The file-bar buttons, disabled while a load is in flight. */
     private final List<Button> whileIdle = new ArrayList<>();
@@ -119,27 +142,25 @@ public class DesktopApp extends Application {
         this.stage = stage;
         this.engine = sharedEngine != null ? sharedEngine : new MarketEngine();
 
+        // The shell first: this call is what fills in every @FXML field above.
+        Parent root = loadLayout();
+
+        // Then the two generated bodies, over the stand-ins the layout file carries.
         eventsScreen = new EventsScreen(this);
         usersScreen = new UsersScreen(this);
-        status = Widgets.muted("Load an events file to begin.");
-        actingAs = Widgets.note("");
-
-        Tab events = new Tab("Events", workspace(eventsScreen));
-        Tab users = new Tab("Users", workspace(usersScreen));
-        events.setClosable(false);
-        users.setClosable(false);
-
-        TabPane tabs = new TabPane(events, users);
+        eventsTab.setContent(workspace(eventsScreen));
+        usersTab.setContent(workspace(usersScreen));
         tabs.getSelectionModel().selectedItemProperty().addListener((observable, was, now) -> refresh());
 
-        // The mocked-up title strip is gone — the real window already has one — so the
-        // file bar is the top of the app, and the theme toggle rides along on its right.
-        BorderPane root = new BorderPane();
-        root.setTop(fileBar());
-        root.setCenter(tabs);
-        root.setBottom(statusBar());
+        // Money moved by a purchase on the Events tab would otherwise roll behind this one's
+        // back; held on the tab's own selection, the movement waits for the tab to open.
+        usersScreen.animateOnlyWhile(usersTab.selectedProperty());
 
-        scene = new Scene(root, 1440, 940);
+        wireFileBar();
+
+        // The window's size is the layout file's — it sets the root's preferred size, and a
+        // Scene with no dimensions of its own takes it.
+        scene = new Scene(root);
         theme.applyTo(scene);
         repaintShapes();
 
@@ -156,57 +177,50 @@ public class DesktopApp extends Application {
     }
 
     /**
-     * The file strip: one primary action, one read-only field saying what is loaded, and
-     * the two session commands. The field is the design's three states in one place —
-     * nothing loaded, loading, and a flash of green when a file has just come in.
+     * Builds the window's fixed shell from {@code DesktopApp.fxml} and hands back its root.
+     *
+     * <p>The loader is told to use <em>this</em> instance as the controller rather than
+     * making one of its own: JavaFX already created this object and {@code Main} already
+     * handed it the engine, so a second {@code DesktopApp} built reflectively out of the
+     * {@code fx:controller} attribute would be wired to nothing. A controller factory that
+     * ignores the class it is asked for and returns {@code this} is how the attribute stays
+     * in the file — Scene Builder reads it to offer the {@code fx:id}s — without a second
+     * instance ever existing.
+     *
+     * <p>The file has to be on the classpath beside this class, the way
+     * {@code guessmarket.css} does, and the failure if it is not says so plainly: the
+     * window cannot be built without it, and a stack trace out of {@code FXMLLoader} would
+     * not name the missing file.
      */
-    private HBox fileBar() {
-        Button loadFile = Widgets.button("Load File", "primary");
+    private Parent loadLayout() {
+        URL layout = DesktopApp.class.getResource(LAYOUT);
+        if (layout == null) {
+            throw new IllegalStateException(LAYOUT + " is missing from the classpath, next to "
+                    + "DesktopApp.class — the window's layout is read from it at start-up.");
+        }
+        FXMLLoader loader = new FXMLLoader(layout);
+        loader.setControllerFactory(type -> this);
+        try {
+            return loader.load();
+        } catch (IOException e) {
+            throw new IllegalStateException("Could not read " + LAYOUT + ": " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Puts the behaviour on the file strip the layout file drew: one primary action, one
+     * read-only field saying what is loaded, and the two session commands. The field is the
+     * design's three states in one place — nothing loaded, loading, and a flash of green
+     * when a file has just come in — and the FXML leaves it in the first of them, with the
+     * bar and the percentage hidden and unmanaged.
+     */
+    private void wireFileBar() {
         loadFile.setOnAction(action -> chooseFile("Load events file", "XML files", "*.xml", false)
                 .ifPresent(this::loadInBackground));
 
-        loadedMark = new Circle(8);
-        loadedMark.getProperties().put("token", "up");
-        tinted.add(loadedMark);
-        loadedMark.setVisible(false);
-        loadedMark.setManaged(false);
-
-        fileState = Widgets.tiny("no file loaded");
-        filePath = Widgets.label("", "mono", "faint");
-        HBox.setHgrow(filePath, Priority.ALWAYS);
-        filePath.setMaxWidth(Double.MAX_VALUE);
-
-        loading = new ProgressBar(0);
-        loading.setVisible(false);
-        loading.setManaged(false);
-        loading.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(loading, Priority.ALWAYS);
-
-        // Fixed width, right-aligned, as the design asks: the digits must not shuffle the
-        // bar sideways as the count goes 9% → 10% → 100%.
-        percent = Widgets.label("0%", "pct");
-        percent.setMinWidth(38);
-        percent.setPrefWidth(38);
-        percent.setAlignment(Pos.CENTER_RIGHT);
-        percent.setVisible(false);
-        percent.setManaged(false);
-
-        HBox field = Widgets.row(8, loadedMark, fileState, filePath, loading, percent);
-        field.getStyleClass().add("sunken");
-        field.setPadding(Widgets.pad(0, 10, 0, 10));
-        field.setMinHeight(30);
-        field.setPrefHeight(30);
-        field.setMinWidth(0);
-        HBox.setHgrow(field, Priority.ALWAYS);
-
-        Button saveSession = Widgets.button("Save session");
         saveSession.setOnAction(action -> chooseFile("Save session", "GuessMarket sessions", "*.gm", true)
                 .ifPresent(file -> perform(() -> "Session saved to " + engine.saveState(file.getPath()) + ".")));
 
-        themeToggle = Widgets.button(theme.label(), "tiny");
-        themeToggle.setOnAction(action -> cycleTheme());
-
-        Button loadSession = Widgets.button("Load session");
         loadSession.setOnAction(action -> chooseFile("Load session", "GuessMarket sessions", "*.gm", false)
                 .ifPresent(file -> perform(() -> {
                     loadedFile = engine.loadState(file.getPath());
@@ -214,30 +228,21 @@ public class DesktopApp extends Application {
                     return "Session loaded from " + loadedFile + ".";
                 })));
 
-        whileIdle.addAll(List.of(loadFile, saveSession, loadSession));
+        themeToggle.setText(theme.label());
+        themeToggle.setOnAction(action -> cycleTheme());
 
-        HBox bar = Widgets.row(10, loadFile, field, saveSession, loadSession, themeToggle);
-        bar.getStyleClass().add("toolstrip");
-        return bar;
+        // Filled rather than styled, so repaintShapes has to know about it and which token
+        // it wears. A looked-up colour cannot reach a Shape's fill from the stylesheet.
+        loadedMark.getProperties().put("token", "up");
+        tinted.add(loadedMark);
+
+        whileIdle.addAll(List.of(loadFile, saveSession, loadSession));
     }
 
     private static Region workspace(javafx.scene.Node content) {
         StackPane pane = new StackPane(content);
         pane.getStyleClass().add("workspace");
         return pane;
-    }
-
-    /**
-     * The status line, plus who commands are being issued as.
-     *
-     * <p>The design puts the choice of user on the Users screen and nowhere else, which
-     * leaves the Events screen able to buy without saying on whose behalf — so the answer
-     * sits here, visible from both.
-     */
-    private HBox statusBar() {
-        HBox bar = Widgets.row(0, status, Widgets.grower(), actingAs);
-        bar.getStyleClass().add("statusbar");
-        return bar;
     }
 
     // --- loading ---
@@ -397,6 +402,26 @@ public class DesktopApp extends Application {
         }
     }
 
+    /**
+     * Opens the create-event form, and issues what it hands back.
+     *
+     * <p>The dialog returns a command rather than a description of an event: it knows how to
+     * read a form, and the engine knows what an event may be. So a rejected event reports
+     * itself through {@link #perform} in the status bar, exactly like a rejected purchase,
+     * and this method contains no rules at all.
+     */
+    void createEvent() {
+        String creator = engine.getCurrentUserName();
+        if (creator == null) {
+            report("Select a user on the Users tab first — whoever creates an event runs it.", true);
+            return;
+        }
+        CreateEventDialog dialog = new CreateEventDialog(creator);
+        dialog.initOwner(stage);
+        theme.applyTo(dialog.getDialogPane());
+        dialog.showAndWait().ifPresent(command -> perform(() -> command.apply(engine)));
+    }
+
     /** Asks which option won, then settles the event on it. */
     void closeEvent(EventView event) {
         ChoiceDialog<String> dialog = new ChoiceDialog<>(event.optionNames().get(0), event.optionNames());
@@ -465,6 +490,24 @@ public class DesktopApp extends Application {
             return value;
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("'" + text.trim() + "' is not a whole number of " + what + ".");
+        }
+    }
+
+    /**
+     * A whole number with a floor rather than a strictly positive one: a commission of 0 and
+     * an order book opened with no initial investment are both legal, so
+     * {@link #readPositiveLong} would refuse figures the engine accepts.
+     */
+    static int readWholeNumber(String text, String what, int least) {
+        try {
+            int value = Integer.parseInt(text.trim().replace(",", ""));
+            if (value < least) {
+                throw new IllegalArgumentException(
+                        "The " + what + " cannot be less than " + least + ".");
+            }
+            return value;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("'" + text.trim() + "' is not a whole " + what + ".");
         }
     }
 

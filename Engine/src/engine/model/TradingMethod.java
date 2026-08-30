@@ -32,5 +32,20 @@ public sealed interface TradingMethod extends Serializable {
      * @param d                 the event's base value
      */
     record OrderBook(boolean allowMint, int initialInvestment, int d) implements TradingMethod {
+
+        /**
+         * Where the market opens: the price the Market Maker's initial allocation is offered
+         * at, on both options.
+         *
+         * <p>Half the base value on each side is the only split that says nothing about which
+         * outcome is likelier, which is exactly what is known before anyone has traded — the
+         * same thing an LMSR event's 0.5 says. Written down once here because two places need
+         * it: {@code EventManager.applyInitialAllocations} places the opening orders at it,
+         * and {@code MarketEngine} reports it so a price chart can start there rather than at
+         * the first transaction.
+         */
+        public double openingPrice() {
+            return d / 2.0;
+        }
     }
 }

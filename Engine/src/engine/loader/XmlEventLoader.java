@@ -57,7 +57,6 @@ public class XmlEventLoader {
     private static final String XML_EXTENSION = ".xml";
 
     /** The file states a whole percentage, capped by the spec at 90. */
-    private static final int MAX_COMMISSION_PERCENT = 90;
     private static final double PERCENT = 100.0;
 
     // Building the context is the expensive part of JAXB, so do it once per loader.
@@ -270,9 +269,9 @@ public class XmlEventLoader {
 
     /** The file states a whole percentage; the domain wants the fraction it multiplies costs by. */
     private double commissionRate(int percent, String eventName) {
-        require(percent >= 0 && percent <= MAX_COMMISSION_PERCENT,
+        require(percent >= 0 && percent <= Event.MAX_COMMISSION_PERCENT,
                 "Event '%s': commission must be between 0 and %d percent, got %d.",
-                eventName, MAX_COMMISSION_PERCENT, percent);
+                eventName, Event.MAX_COMMISSION_PERCENT, percent);
         return percent / PERCENT;
     }
 

@@ -59,6 +59,10 @@ class LmsrPane extends HBox {
 
         private final Label name = Widgets.label("", "opt-name");
         private final Label price = Widgets.label(Widgets.NONE, "opt-price");
+
+        /** The headline price counts to its new value, so a purchase is seen to move it. */
+        private final Ticker priceTicker = Ticker.price(price);
+
         private final Region fill = new Region();
         private final StackPane meter = new StackPane(fill);
         private final Label outstanding = Widgets.label(Widgets.NONE, "kv-val");
@@ -80,6 +84,12 @@ class LmsrPane extends HBox {
             fill.setMinHeight(6);
             meter.getStyleClass().add("meter");
             meter.setAlignment(Pos.CENTER_LEFT);
+
+            // The meter is the price itself: the two options of an event sum to 1, so the
+            // filled part is literally how likely this outcome is being called. It follows
+            // the ticker rather than the engine's figure, so the bar and the digits above it
+            // move together — bound once here, because the property never changes.
+            fill.prefWidthProperty().bind(meter.widthProperty().multiply(priceTicker.value()));
 
             VBox figures = new VBox(6,
                     Widgets.row(8, Widgets.label("Shares outstanding", "kv-key"),
@@ -106,12 +116,12 @@ class LmsrPane extends HBox {
 
         void show(EventStatusView status, OptionView option, boolean open) {
             name.setText(option.name());
-            price.setText(Widgets.price(option.currentPrice()));
+            // Pointed at this event's price, so the ticker rolls when the event reprices
+            // and lands flat when the card is re-used for a different event — the property
+            // it is following is the one that changes, so nothing here has to say which.
+            priceTicker.follow(app.live().price(status.eventId(), optionIndex));
             outstanding.setText(Widgets.shares(option.totalShares()));
 
-            // The meter is the price itself: the two options of an event sum to 1, so the
-            // filled part is literally how likely this outcome is being called.
-            fill.prefWidthProperty().bind(meter.widthProperty().multiply(option.currentPrice()));
             fill.getStyleClass().removeAll("other");
             if (optionIndex == 1) {
                 fill.getStyleClass().add("other");

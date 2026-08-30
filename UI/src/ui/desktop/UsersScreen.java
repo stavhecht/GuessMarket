@@ -10,7 +10,16 @@ import engine.dto.OrderResult;
 import engine.dto.UserView;
 import engine.exception.EngineException;
 import engine.model.OrderSide;
+import javafx.beans.binding.Bindings;
+import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.IntegerProperty;
+import javafx.beans.property.SimpleIntegerProperty;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.property.StringProperty;
+import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableBooleanValue;
+import javafx.beans.value.ObservableValue;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
@@ -28,7 +37,9 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Screen two: every user on the left, one user's account on the right.
@@ -63,6 +74,31 @@ class UsersScreen extends HBox {
     private final Label balance = Widgets.label(Widgets.NONE, "num-big");
     private final Label potential = Widgets.label(Widgets.NONE, "num-big");
     private final Label potentialDelta = Widgets.label("", "mono");
+
+    /**
+     * The three figures of the account header count to their new values rather than
+     * replacing themselves, so a purchase is seen to move the money. Each follows a property
+     * belonging to one user, so switching accounts re-points it and lands rather than rolling
+     * — a different person's balance is not this one's next value.
+     */
+    private final Ticker balanceTicker = Ticker.money(balance);
+    private final Ticker potentialTicker = Ticker.money(potential);
+    private final Ticker potentialDeltaTicker = Ticker.signed(potentialDelta);
+
+    /**
+     * The potential outcome of each account, and how far it sits from the cash in it.
+     *
+     * <p>The same shape as {@code LiveMarket.prices}, kept here rather than there because
+     * this is the one figure on the screen the engine does not publish: it is worked out in
+     * {@link MarketData#potentialOutcome} from the positions of whichever user is selected,
+     * and computing it for everybody on every refresh would be a walk of every holding of
+     * every user to answer a question about one of them.
+     *
+     * <p>Index 0 is the outcome, index 1 the delta. Only the selected user's is ever set;
+     * the rest hold zero until they are looked at, which is the moment they get a real value
+     * and the ticker lands on it.
+     */
+    private final Map<String, DoubleProperty[]> outcomes = new LinkedHashMap<>();
 
     // positions
     private final ComboBox<String> roleFilter = new ComboBox<>();
@@ -105,6 +141,15 @@ class UsersScreen extends HBox {
     private final Label balanceAfter = Widgets.label(Widgets.NONE, "kv-val");
     private final Button buy = Widgets.button("Buy", "primary");
 
+    /**
+     * The figures this screen owns rather than the engine, each backing a bound label —
+     * the same arrangement as {@code EventsScreen}, and for the same reason: a refresh that
+     * moved nothing must not rewrite anything.
+     */
+    private final IntegerProperty userTotal = new SimpleIntegerProperty();
+    private final StringProperty totalHeldText = new SimpleStringProperty(Widgets.NONE);
+    private final StringProperty balanceMovesText = new SimpleStringProperty("");
+
     private List<EventView> allEvents = List.of();
     private List<MarketData.Position> allPositions = List.of();
     private String selectedUser;
@@ -115,6 +160,10 @@ class UsersScreen extends HBox {
         super(14);
         this.app = app;
         this.limitRow = Widgets.row(6, Widgets.tiny("limit price"), limit);
+
+        userCount.textProperty().bind(userTotal.asString());
+        totalHeld.textProperty().bind(totalHeldText);
+        balanceMoves.textProperty().bind(balanceMovesText);
 
         VBox left = buildUserList();
         // The account is four stacked panels and does not shrink gracefully — below a tall
@@ -335,16 +384,16 @@ class UsersScreen extends HBox {
             allEvents = List.of();
             allPositions = List.of();
             users.getItems().clear();
-            userCount.setText("0");
-            totalHeld.setText(Widgets.NONE);
+            userTotal.set(0);
+            totalHeldText.set(Widgets.NONE);
             showAccount(null);
             return;
         }
 
         allEvents = app.engine().getEvents();
         List<UserView> everyone = app.engine().getUsers();
-        userCount.setText(String.valueOf(everyone.size()));
-        totalHeld.setText(Widgets.money(MarketData.totalHeld(everyone)));
+        userTotal.set(everyone.size());
+        totalHeldText.set(Widgets.money(MarketData.totalHeld(everyone)));
 
         String current = app.engine().getCurrentUserName();
         users.getItems().setAll(everyone);
@@ -369,9 +418,9 @@ class UsersScreen extends HBox {
             name.setText(Widgets.NONE);
             ownerOf.setVisible(false);
             summary.setText("Load an events file to see accounts.");
-            balance.setText(Widgets.NONE);
-            potential.setText(Widgets.NONE);
-            potentialDelta.setText("");
+            balanceTicker.clear();
+            potentialTicker.clear();
+            potentialDeltaTicker.clear("");     // the delta has no dash of its own
             allPositions = List.of();
             bindBalanceTo(null);
             showPositions();
@@ -390,14 +439,45 @@ class UsersScreen extends HBox {
                 user.holdings().size(), user.holdings().size() == 1 ? "" : "s",
                 allPositions.size(), allPositions.size() == 1 ? "" : "s",
                 Widgets.money(user.reservedCash())));
-        balance.setText(Widgets.money(user.balance()));
-        potential.setText(Widgets.money(outcome));
-        potentialDelta.setText(Widgets.signed(outcome - user.balance()));
+        // Set first, follow second: setting a property that is already being followed is
+        // the movement, and pointing at one that is not is the arrival. Both end with the
+        // right figure on screen, and only the first of them animates.
+        DoubleProperty[] figures = outcomeOf(user.name());
+        figures[0].set(outcome);
+        figures[1].set(outcome - user.balance());
+
+        balanceTicker.follow(app.live().balance(user.name()));
+        potentialTicker.follow(figures[0]);
+        potentialDeltaTicker.follow(figures[1]);
+
+        // The colour is what the delta *is*, not a step on the way there, so it is set at
+        // once and the digits catch up to it.
         potentialDelta.getStyleClass().removeAll("up", "down", "faint");
         potentialDelta.getStyleClass().add(Widgets.moveClass(outcome - user.balance()));
 
         bindBalanceTo(user.name());
         showPositions();
+    }
+
+    /**
+     * Holds the account header's three figures still until this screen is the one on show.
+     *
+     * <p>Most of the money on this screen is moved from the other one: a purchase made on
+     * the Events tab changes the balance here, and the roll that follows it would play out
+     * behind a tab nobody is looking at. Gated on the tab's own selection, it waits and runs
+     * when the tab is opened — which is the only moment there is anyone to see it. Called by
+     * {@code DesktopApp.start} once the layout has handed it the tab.
+     */
+    void animateOnlyWhile(ObservableBooleanValue inView) {
+        balanceTicker.onlyWhile(inView);
+        potentialTicker.onlyWhile(inView);
+        potentialDeltaTicker.onlyWhile(inView);
+    }
+
+    /** The outcome and delta properties of one account, made on first sight of it. */
+    private DoubleProperty[] outcomeOf(String userName) {
+        return outcomes.computeIfAbsent(userName,
+                name -> new DoubleProperty[] { new SimpleDoubleProperty(), new SimpleDoubleProperty() });
     }
 
     /** Points the balance chart at one user's account, letting go of the last one's. */
@@ -422,7 +502,7 @@ class UsersScreen extends HBox {
      */
     private void redrawBalance() {
         if (charted == null) {
-            balanceMoves.setText("");
+            balanceMovesText.set("");
             balanceChart.show(List.of(), value -> "", List.of());
             return;
         }
@@ -433,7 +513,7 @@ class UsersScreen extends HBox {
             ticks.add(i == 0 ? "start" : "c" + i);
         }
         int moves = Math.max(0, history.size() - 1);
-        balanceMoves.setText(moves == 1 ? "1 change" : moves + " changes");
+        balanceMovesText.set(moves == 1 ? "1 change" : moves + " changes");
         balanceChart.show(
                 List.of(new SparkChart.Series("balance", "accent", history)),
                 Widgets::money, ticks);
@@ -539,7 +619,7 @@ class UsersScreen extends HBox {
             }
             tradeCommission.setText(Widgets.NONE);
             tradeMethod.setText(Widgets.NONE);
-            tradeAccount.setText(Widgets.NONE);
+            Widgets.followMoney(tradeAccount, null);
             optionButtons[0].setText(Widgets.NONE);
             optionButtons[1].setText(Widgets.NONE);
             limitRow.setVisible(false);
@@ -562,27 +642,29 @@ class UsersScreen extends HBox {
             optionButtons[i].setText(event.optionNames().get(i));
         }
 
+        // The account belongs to the event, so it follows that event's property and is
+        // re-pointed when the position selection moves to another one.
+        Widgets.followMoney(tradeAccount, app.live().account(event.id()));
+
         boolean lmsr = MarketData.isLmsr(event);
         limitRow.setVisible(!lmsr);
         limitRow.setManaged(!lmsr);
 
         if (lmsr) {
             EventStatusView status = app.engine().getEventStatus(event.id());
-            tradeAccount.setText(Widgets.money(status.accountBalance()));
             for (int i = 0; i < optionRows.length; i++) {
                 optionRows[i].show(status.options().get(i).name(),
-                        status.options().get(i).currentPrice(),
+                        app.live().price(event.id(), i),
                         status.options().get(i).totalShares(),
                         "b = " + (status.b() == Math.rint(status.b())
                                 ? String.valueOf((long) status.b()) : Widgets.money(status.b())));
             }
         } else {
             OrderBookStatusView status = app.engine().getOrderBookStatus(event.id());
-            tradeAccount.setText(Widgets.money(status.accountBalance()));
             for (int i = 0; i < optionRows.length; i++) {
                 OptionBookView option = status.options().get(i);
-                Double shown = option.lastPrice() != null ? option.lastPrice() : option.midPrice();
-                optionRows[i].show(option.name(), shown == null ? 0 : shown, option.sharesOutstanding(),
+                optionRows[i].show(option.name(), app.live().price(event.id(), i),
+                        option.sharesOutstanding(),
                         "bid " + Widgets.price(option.bestBid()) + " / ask " + Widgets.price(option.bestAsk()));
             }
             if (limit.getText().isBlank()) {
@@ -702,6 +784,7 @@ class UsersScreen extends HBox {
 
         private final Label name = Widgets.label("", "opt-name");
         private final Label price = Widgets.label(Widgets.NONE, "opt-price");
+        private final Ticker priceTicker = Ticker.price(price);
         private final Region fill = new Region();
         private final StackPane meter = new StackPane(fill);
         private final Label detail = Widgets.note("");
@@ -713,24 +796,35 @@ class UsersScreen extends HBox {
             fill.getStyleClass().add("meter-fill");
             meter.getStyleClass().add("meter");
             meter.setAlignment(Pos.CENTER_LEFT);
+
+            // Bound once to the rolling figure, the same way LmsrPane's meter is, so the bar
+            // travels with the digits instead of jumping to the answer ahead of them. It was
+            // rebound to a constant on every show before, which is why it used to jump.
+            fill.maxWidthProperty().bind(meter.widthProperty().multiply(
+                    Bindings.createDoubleBinding(
+                            () -> Math.max(0, Math.min(1, priceTicker.value().get())),
+                            priceTicker.value())));
+
             HBox head = Widgets.row(8, name, Widgets.grower(), price);
             head.setAlignment(Pos.BASELINE_LEFT);
             getChildren().addAll(head, meter, detail);
         }
 
-        void show(String optionName, double optionPrice, long shares, String note) {
+        /**
+         * @param optionPrice the event's own live price, followed rather than read, so this
+         *                    row rolls when the option reprices and lands when the panel is
+         *                    re-used for a different event
+         */
+        void show(String optionName, ObservableValue<? extends Number> optionPrice,
+                  long shares, String note) {
             name.setText(optionName);
-            price.setText(Widgets.price(optionPrice));
-            fill.maxWidthProperty().bind(meter.widthProperty()
-                    .multiply(Math.max(0, Math.min(1, optionPrice))));
+            priceTicker.follow(optionPrice);
             detail.setText(Widgets.shares(shares) + " sh · " + note);
         }
 
         void clear() {
             name.setText(Widgets.NONE);
-            price.setText(Widgets.NONE);
-            fill.maxWidthProperty().unbind();
-            fill.setMaxWidth(0);
+            priceTicker.clear();    // empties the meter with it; the binding stays
             detail.setText("");
         }
     }

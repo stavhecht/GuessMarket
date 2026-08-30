@@ -114,20 +114,30 @@ final class MarketData {
     }
 
     /**
-     * What each option last traded at as an order book's log runs forward, oldest first —
-     * the series behind the design's "option price after each transaction" chart.
+     * What each option last traded at as an order book's log runs forward, starting from
+     * where the market opened — the series behind the design's price chart.
      *
      * <p>This is bookkeeping, not pricing: each point carries the other option's previous
      * price along unchanged, because nothing happened to it. The LMSR series is the
      * engine's own ({@code MarketEngine.getPriceHistory}), since an LMSR price is a
      * function of outstanding shares rather than of anything written in the log.
+     *
+     * <p>The first point is the engine's {@code openingPrice} — where the Market Maker's
+     * initial allocation was quoted — so the line begins with the market rather than with
+     * its first trade, as the LMSR series does. An event that opened with no allocation has
+     * no such price and starts as it always did: at {@code NaN}, which {@link SparkChart}
+     * draws as a gap, with the line beginning at the first trade.
      */
     static List<double[]> priceSeries(OrderBookStatusView status) {
         List<BookTrade> oldestFirst = new ArrayList<>(status.history());
         Collections.reverse(oldestFirst);
 
         List<double[]> series = new ArrayList<>();
-        double[] latest = { Double.NaN, Double.NaN };
+        double open = status.openingPrice() == null ? Double.NaN : status.openingPrice();
+        double[] latest = { open, open };
+        if (status.openingPrice() != null) {
+            series.add(latest);
+        }
         for (BookTrade trade : oldestFirst) {
             latest = new double[] { latest[0], latest[1] };
             latest[trade.optionIndex()] = trade.price();

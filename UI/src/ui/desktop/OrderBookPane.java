@@ -67,6 +67,10 @@ class OrderBookPane extends HBox {
 
         private final Label name = Widgets.label("", "opt-name");
         private final Label price = Widgets.label(Widgets.NONE, "opt-price");
+
+        /** The headline price counts to its new value, so a fill is seen to move it. */
+        private final Ticker priceTicker = Ticker.price(price);
+
         private final Label outstanding = Widgets.faint("");
         private final Label last = Widgets.label(Widgets.NONE, "stat-val");
         private final Label bid = Widgets.label(Widgets.NONE, "stat-val", "up");
@@ -134,7 +138,9 @@ class OrderBookPane extends HBox {
 
         void show(OptionBookView option, boolean open) {
             name.setText(option.name());
-            price.setText(Widgets.price(option.lastPrice()));
+            // Pointed at this event's last traded price, which reads null until something
+            // trades — the ticker shows that as a dash and lands on the first real price.
+            priceTicker.follow(app.live().lastPrice(eventId, optionIndex));
             outstanding.setText(Widgets.shares(option.sharesOutstanding()) + " sh");
             last.setText(Widgets.price(option.lastPrice()));
             bid.setText(Widgets.price(option.bestBid()));

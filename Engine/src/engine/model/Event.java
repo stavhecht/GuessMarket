@@ -19,6 +19,16 @@ public class Event implements Serializable {
     /** This market is binary by construction. */
     public static final int OPTION_COUNT = 2;
 
+    /**
+     * The most an event may charge, as a percentage.
+     *
+     * <p>A domain rule rather than a file one, which is why it lives here: both ways an
+     * event can come into being — read from XML by {@code XmlEventLoader}, or created at
+     * runtime by {@code MarketEngine} — have to hold to the same ceiling, and a number
+     * written down twice is a number that drifts.
+     */
+    public static final int MAX_COMMISSION_PERCENT = 90;
+
     private final int id;
     private final String name;
     private final String description;

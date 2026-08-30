@@ -1,16 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <!--
-  The desktop app's layout, as Scene Builder can open it.
+  The desktop app's layout, as Scene Builder can open it — and as the app itself loads it.
 
-  This is a MIRROR, not the app. Nothing loads this file: DesktopApp builds the same tree
-  in Java (see DesktopApp.start, EventsScreen and UsersScreen), because most of the screen
-  is generated from the loaded market rather than fixed — table rows, the two option cards,
-  the ladder, the chart. What is fixed is the shape, and that is what is written down here,
-  so the layout can be edited visually and the numbers read off it.
+  DesktopApp.start reads this file through an FXMLLoader and uses the tree it gets back as
+  the scene root, so the window's SHELL is this file and not Java: the file bar, the tab
+  pane and the status line below are the real ones. Every fx:id in those three sections is
+  the name of an @FXML field in DesktopApp, and the loader fills them in — which is also why
+  a rename here has to be matched there by hand. The compiler cannot see into this file, so
+  a mismatch shows up as a null at start-up, not as a build error.
 
-  Keep the two in step by hand. The fx:id of every node below is the field name it has in
-  the Java class named in the comment above it.
+  The two tabs' BODIES are a different matter. Most of a screen is generated from the loaded
+  market rather than fixed — table rows, the two option cards, the ladder, the chart — so
+  EventsScreen and UsersScreen still build themselves in Java, and start() drops each one
+  into its tab with setContent. Everything written out inside the two <Tab> elements below
+  is therefore a STAND-IN: it is what Scene Builder shows, so the panels can be laid out and
+  measured visually, and it is discarded the moment the app replaces it. The fx:ids in those
+  sections name fields in EventsScreen / UsersScreen — the class is given in the comment
+  above each block — and are documentation only; nothing injects them.
 
   Three things Scene Builder cannot show, and their stand-ins here:
 
@@ -23,7 +30,8 @@
       real, the rows are not.
 
   The stylesheet is the real one the app uses, so the preview is the actual design.
-  Switch the look by changing the root's styleClass to theme-dark or theme-neon.
+  Switch the look by changing the root's styleClass to theme-dark or theme-neon — though at
+  runtime Theme.applyTo overwrites that class with whichever theme the toggle is showing.
 -->
 
 <?import java.lang.String?>
@@ -49,14 +57,15 @@
 <?import javafx.scene.shape.Circle?>
 
 <BorderPane xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml"
+            fx:controller="ui.desktop.DesktopApp"
             prefWidth="1440" prefHeight="940" minWidth="1180" minHeight="760"
             styleClass="theme-light" stylesheets="@guessmarket.css">
 
-    <!-- ============================ DesktopApp.fileBar() ============================ -->
+    <!-- ====================== DesktopApp.wireFileBar() — REAL ======================= -->
     <top>
         <HBox spacing="10" alignment="CENTER_LEFT" styleClass="toolstrip">
             <children>
-                <Button text="Load File" styleClass="primary"/>
+                <Button fx:id="loadFile" text="Load File" styleClass="primary"/>
 
                 <!-- The design's three states in one field: nothing loaded, loading, loaded. -->
                 <HBox fx:id="field" spacing="8" alignment="CENTER_LEFT" styleClass="sunken"
@@ -75,19 +84,23 @@
                     </children>
                 </HBox>
 
-                <Button text="Save session"/>
-                <Button text="Load session"/>
+                <Button fx:id="saveSession" text="Save session"/>
+                <Button fx:id="loadSession" text="Load session"/>
                 <Button fx:id="themeToggle" text="Light" styleClass="tiny"/>
             </children>
         </HBox>
     </top>
 
     <center>
-        <TabPane>
+        <TabPane fx:id="tabs">
             <tabs>
 
-                <!-- ======================= EventsScreen ======================= -->
-                <Tab text="Events" closable="false">
+                <!-- ============================================================
+                     The Tab itself is real; its content below is a STAND-IN that
+                     DesktopApp.start replaces with the generated EventsScreen.
+                     fx:ids inside it name EventsScreen fields, and are documentation.
+                     ============================================================ -->
+                <Tab fx:id="eventsTab" text="Events" closable="false">
                     <content>
                         <StackPane styleClass="workspace">
                             <children>
@@ -103,7 +116,7 @@
                                                         <Region HBox.hgrow="ALWAYS"/>
                                                         <Label fx:id="eventCount" text="0" styleClass="pill, count"/>
                                                         <Region minWidth="4" prefWidth="4"/>
-                                                        <Button text="Create event" styleClass="small" disable="true"/>
+                                                        <Button text="Create event" styleClass="small"/>
                                                     </children>
                                                 </HBox>
 
@@ -394,8 +407,10 @@
                     </content>
                 </Tab>
 
-                <!-- ======================== UsersScreen ======================== -->
-                <Tab text="Users" closable="false">
+                <!-- ============================================================
+                     Real Tab, stand-in content, replaced by the generated UsersScreen.
+                     ============================================================ -->
+                <Tab fx:id="usersTab" text="Users" closable="false">
                     <content>
                         <StackPane styleClass="workspace">
                             <children>
@@ -742,7 +757,14 @@
         </TabPane>
     </center>
 
-    <!-- ============================ DesktopApp.statusBar() ============================ -->
+    <!--
+      The status line, plus who commands are being issued as — REAL, injected into
+      DesktopApp.status / DesktopApp.actingAs.
+
+      The design puts the choice of user on the Users screen and nowhere else, which leaves
+      the Events screen able to buy without saying on whose behalf — so the answer sits
+      here, visible from both.
+    -->
     <bottom>
         <HBox spacing="0" alignment="CENTER_LEFT" styleClass="statusbar">
             <children>

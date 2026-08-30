@@ -1,12 +1,16 @@
 package ui.desktop;
 
+import engine.dto.EventStatusView;
 import engine.dto.EventView;
+import engine.dto.OptionBookView;
 import engine.dto.OptionView;
 import engine.dto.OrderBookStatusView;
 import engine.dto.UserView;
 import engine.service.MarketEngine;
 import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleDoubleProperty;
+import javafx.beans.property.SimpleObjectProperty;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -14,8 +18,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The observable mirror the charts follow: one property per option price and one per user
- * balance, re-read from the engine on every {@link DesktopApp#refresh()}.
+ * The observable mirror the screens follow: a property per option price, per event account
+ * and per user balance, re-read from the engine on every {@link DesktopApp#refresh()}.
  *
  * <p>The engine is plain Java and says nothing when it changes — it is asked, never
  * subscribed to. This class is the adapter that gives the UI something to
@@ -24,6 +28,15 @@ import java.util.Map;
  * moves. So a listener on {@link #price} runs on the refreshes where that option really
  * repriced, not on every redraw, and a chart wired to it cannot go stale while some other
  * part of the screen updates.
+ *
+ * <p>That is also what a {@link Ticker} follows, and why it no longer has to be told which
+ * figure a value belongs to: a property firing <em>is</em> a movement, and being pointed at
+ * a different property <em>is</em> a change of subject.
+ *
+ * <p><b>Never hold a permanent binding to one of these properties.</b> {@link #reset} drops
+ * them, so a binding made outside the selection path would go on watching an object nothing
+ * writes to any more. Re-point on selection instead, the way {@code bindChartTo},
+ * {@code bindBalanceTo} and every {@code Ticker.follow} call do.
  *
  * <p>The two histories are not the same kind of thing, on purpose:
  *
@@ -43,6 +56,18 @@ class LiveMarket {
     /** Both option prices of one event, indexed the way the engine indexes them. */
     private final Map<Integer, DoubleProperty[]> prices = new LinkedHashMap<>();
 
+    /**
+     * The last price each option of an order book actually traded at — {@code null} until
+     * one has, which is why this is an object property and not a {@code double} one. Its
+     * neighbour {@link #prices} answers a different question: what the option is worth now,
+     * falling back to the middle of the spread when nothing has traded.
+     */
+    private final Map<Integer, List<ObjectProperty<Double>>> lastPrices = new LinkedHashMap<>();
+
+    /** What each event's own account holds, and what it has taken in commission. */
+    private final Map<Integer, DoubleProperty> accounts = new LinkedHashMap<>();
+    private final Map<Integer, DoubleProperty> commissions = new LinkedHashMap<>();
+
     private final Map<String, DoubleProperty> balances = new LinkedHashMap<>();
 
     /** Every balance this user has held since the window opened, oldest first. */
@@ -58,6 +83,27 @@ class LiveMarket {
         return prices.computeIfAbsent(eventId,
                 id -> new DoubleProperty[] { new SimpleDoubleProperty(), new SimpleDoubleProperty() })
                 [optionIndex];
+    }
+
+    /**
+     * What option {@code optionIndex} of an order-book event last traded at, or {@code null}
+     * if nothing has traded on it. Only ever set for order-book events; an LMSR option is
+     * always priced by the scoring rule and has no such thing.
+     */
+    ObjectProperty<Double> lastPrice(int eventId, int optionIndex) {
+        return lastPrices.computeIfAbsent(eventId,
+                id -> List.of(new SimpleObjectProperty<>(), new SimpleObjectProperty<>()))
+                .get(optionIndex);
+    }
+
+    /** What event {@code eventId}'s account holds now. */
+    DoubleProperty account(int eventId) {
+        return accounts.computeIfAbsent(eventId, id -> new SimpleDoubleProperty());
+    }
+
+    /** What event {@code eventId} has taken in commission so far. */
+    DoubleProperty commission(int eventId) {
+        return commissions.computeIfAbsent(eventId, id -> new SimpleDoubleProperty());
     }
 
     /** What {@code userName} holds in cash now. */
@@ -90,9 +136,26 @@ class LiveMarket {
      */
     void sync(MarketEngine engine) {
         for (EventView event : engine.getEvents()) {
-            double[] current = pricesOf(engine, event);
-            for (int i = 0; i < current.length; i++) {
-                price(event.id(), i).set(current[i]);
+            // One status per event, read once: it carries the prices, the account and the
+            // commission between them, and asking the engine again for each would be three
+            // walks of the same state.
+            if (MarketData.isLmsr(event)) {
+                EventStatusView status = engine.getEventStatus(event.id());
+                List<OptionView> options = status.options();
+                for (int i = 0; i < options.size(); i++) {
+                    price(event.id(), i).set(options.get(i).currentPrice());
+                }
+                account(event.id()).set(status.accountBalance());
+                commission(event.id()).set(status.commissionCollected());
+            } else {
+                OrderBookStatusView status = engine.getOrderBookStatus(event.id());
+                for (int i = 0; i < status.options().size(); i++) {
+                    OptionBookView option = status.options().get(i);
+                    price(event.id(), i).set(MarketData.quote(option));
+                    lastPrice(event.id(), i).set(option.lastPrice());
+                }
+                account(event.id()).set(status.accountBalance());
+                commission(event.id()).set(status.commissionCollected());
             }
         }
         for (UserView user : engine.getUsers()) {
@@ -114,30 +177,22 @@ class LiveMarket {
      *
      * <p>Event ids and user names are reused across files, so without this a fresh load
      * would inherit the previous market's balance timeline.
+     *
+     * <p>Every property is dropped rather than zeroed, which is the reason for the rule in
+     * this class's own documentation: after a reset, {@code price(5, 0)} hands back a
+     * <em>different</em> object, and anything still listening to the old one will never hear
+     * from it again. Zeroing instead would keep the identity but would fire every listener
+     * on the way — a following {@link Ticker} would roll all the way down to zero and back
+     * up on every file load. Dropping is the right trade because {@code DesktopApp} calls
+     * this immediately before a {@code refresh()}, and that refresh re-points every
+     * subscription there is.
      */
     void reset() {
         prices.clear();
+        lastPrices.clear();
+        accounts.clear();
+        commissions.clear();
         balances.clear();
         balanceHistory.clear();
-    }
-
-    /**
-     * Both current prices of one event, whichever way it trades — the LMSR scoring rule's
-     * quote, or the order book's last trade falling back to the middle of its spread.
-     */
-    private static double[] pricesOf(MarketEngine engine, EventView event) {
-        double[] current = new double[2];
-        if (MarketData.isLmsr(event)) {
-            List<OptionView> options = engine.getEventStatus(event.id()).options();
-            for (int i = 0; i < options.size(); i++) {
-                current[i] = options.get(i).currentPrice();
-            }
-        } else {
-            OrderBookStatusView status = engine.getOrderBookStatus(event.id());
-            for (int i = 0; i < status.options().size(); i++) {
-                current[i] = MarketData.quote(status.options().get(i));
-            }
-        }
-        return current;
     }
 }

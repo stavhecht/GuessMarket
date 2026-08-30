@@ -2,6 +2,7 @@ package engine.model;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,7 +32,13 @@ public class User implements Serializable {
 
     private final String name;
     private final int initialCash;
-    private final List<Integer> marketMakerEventIds;
+
+    /**
+     * Not final, because an event can be created after this user was: see
+     * {@link #addMarketMakerEvent}. The declared type is unchanged, so this class still
+     * deserialises every {@code .gm} file written before it could grow.
+     */
+    private List<Integer> marketMakerEventIds;
 
     private double balance;
     private double reservedCash;
@@ -64,6 +71,22 @@ public class User implements Serializable {
 
     public boolean isMarketMakerOf(int eventId) {
         return marketMakerEventIds.contains(eventId);
+    }
+
+    /**
+     * Makes this user the Market Maker of one more event — the one they have just created.
+     *
+     * <p>Copy-on-write rather than an {@code add}, and that is not a style choice: a session
+     * saved before this method existed deserialises the immutable list the constructor used
+     * to make, and adding to it would throw. Replacing it works whatever the list arrived as.
+     *
+     * <p>The engine has already checked that the event exists and that nobody else runs it;
+     * this class holds state, not rules, exactly as it does for money.
+     */
+    public void addMarketMakerEvent(int eventId) {
+        List<Integer> updated = new ArrayList<>(marketMakerEventIds);
+        updated.add(eventId);
+        marketMakerEventIds = List.copyOf(updated);
     }
 
     // --- money ---

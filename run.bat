@@ -4,7 +4,8 @@ rem Class-Path, so they only need to sit next to it. The working directory is le
 rem alone, so a relative path typed into the app resolves against wherever you are.
 rem
 rem JavaFX is not part of the JDK and cannot travel in the manifest, so the desktop UI needs
-rem the SDK named on the module path. Set JAVAFX_HOME if yours lives elsewhere.
+rem the SDK named on the module path - javafx.fxml as well as javafx.controls, because the
+rem window's layout is read from DesktopApp.fxml. Set JAVAFX_HOME if yours lives elsewhere.
 chcp 65001 >nul
 if "%JAVAFX_HOME%"=="" set JAVAFX_HOME=%USERPROFILE%\javafx-sdk-25.0.4
 
@@ -14,6 +15,6 @@ if not exist "%JAVAFX_HOME%\lib" (
   exit /b 1
 )
 
-java --module-path "%JAVAFX_HOME%\lib" --add-modules javafx.controls ^
+java --module-path "%JAVAFX_HOME%\lib" --add-modules javafx.controls,javafx.fxml ^
      --enable-native-access=javafx.graphics ^
      -jar "%~dp0out\artifacts\UI_jar\UI.jar" %*

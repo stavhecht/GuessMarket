@@ -1,6 +1,7 @@
 package ui.desktop;
 
 import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.value.ObservableValue;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -40,6 +41,9 @@ final class Widgets {
 
     /** Shown where a figure has no value yet — an option nobody has quoted, say. */
     static final String NONE = "—";
+
+    /** Where {@link #followMoney} remembers what a label is already following. */
+    private static final String FOLLOWING = "gm-following";
 
     private Widgets() {
     }
@@ -142,6 +146,33 @@ final class Widgets {
         Button button = new Button(text);
         button.getStyleClass().addAll(styleClasses);
         return button;
+    }
+
+    /**
+     * Points a label at a live money figure, letting go of whatever it was showing before.
+     *
+     * <p>The label stops being written to and starts being <em>bound</em>, so a refresh that
+     * did not move this figure does not touch it: the property fires only on a real change.
+     * Re-pointing is why the unbind comes first — the figure belongs to whichever event or
+     * user is selected, and the selection moves.
+     *
+     * @param figure the property to follow, or {@code null} for nothing selected
+     */
+    static void followMoney(Label label, ObservableValue<? extends Number> figure) {
+        // Re-pointing at the same figure has to be free, because the selection path calls
+        // this on every refresh: unbinding and rebinding would write the text out again and
+        // undo the whole point of binding it.
+        if (label.getProperties().get(FOLLOWING) == figure) {
+            return;
+        }
+        label.textProperty().unbind();
+        if (figure == null) {
+            label.getProperties().remove(FOLLOWING);
+            label.setText(NONE);
+            return;
+        }
+        label.getProperties().put(FOLLOWING, figure);
+        label.textProperty().bind(figure.map(value -> money(value.doubleValue())));
     }
 
     static Button tip(Button button, String text) {
