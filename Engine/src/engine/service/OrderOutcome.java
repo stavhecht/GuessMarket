@@ -6,8 +6,8 @@ import engine.model.Order;
 import java.util.List;
 
 /**
- * What became of one submitted order: the order itself — whose {@code remaining} says how
- * much of it is now waiting in the book — and the trades it caused.
+ * What became of one submitted order: the order itself, whose {@code remaining} says how
+ * much of it is now waiting in the book, and the trades it caused.
  *
  * @param fills the lines of history this order was party to, in the order they happened.
  *              For a mint only the submitter's own line appears here; the counterparty's

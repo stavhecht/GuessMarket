@@ -2,26 +2,26 @@
  * The desktop app's whole stylesheet.
  *
  * The design names every colour once, as a token, and every theme redefines the same set.
- * Those tokens are JavaFX *looked-up colours* — the `-gm-name` declarations on `.root`
- * below — so a theme is one block that redefines them and nothing else has to change.
+ * Those tokens are JavaFX *looked-up colours*, the `-gm-name` declarations on `.root`
+ * below, so a theme is one block that redefines them and nothing else has to change.
  * A node resolves `-gm-accent` by walking up its parents until it finds a declaration,
  * which is why putting `theme-dark` on the root re-colours everything under it.
  *
  * Themes are applied by `Theme.applyTo`, which swaps a single style class on the node:
  * `.root` alone is Light, `.root.theme-dark` is Dark, `.root.theme-neon` is Neon. The
- * theme blocks come after this one on purpose — same specificity, so the later rule wins.
+ * theme blocks come after this one on purpose: same specificity, so the later rule wins.
  *
  * Two things a looked-up colour cannot carry, because JavaFX only looks up paints:
  * corner radii and font families. Those are written literally here at their Light values,
  * and the Neon block at the bottom restates the handful of rules that change them.
  *
  * JavaFX has no `text-transform` and no `letter-spacing`, so the two places the design
- * leans on them — the small-caps labels, and Neon's shouting buttons — are uppercased in
+ * leans on them (the small-caps labels, and Neon's shouting buttons) are uppercased in
  * Java by `Widgets` instead.
  *
  * This is JavaFX CSS, not the web's, and the IDE lints it as the web's. It tolerates every
- * `-fx-` and `-gm-` property as a vendor prefix, but `segments(...)` — JavaFX's dashed
- * border pattern — is a function no browser has, so the two rules that use it carry a
+ * `-fx-` and `-gm-` property as a vendor prefix, but `segments(...)`, JavaFX's dashed
+ * border pattern, is a function no browser has, so the two rules that use it carry a
  * `/*noinspection CssInvalidFunction* /` line. Nothing is wrong with them; JavaFX parses
  * them fine. (The same goes for the half-pixel font sizes it warns about: JavaFX honours
  * them.)
@@ -57,7 +57,7 @@
     -fx-faint-focus-color: transparent;
 }
 
-/* Light needs no overrides — it is the block above. The class exists so that every theme
+/* Light needs no overrides: it is the block above. The class exists so that every theme
    is named the same way, both here and in Theme. */
 .theme-light { }
 
@@ -277,6 +277,12 @@
     -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
     -fx-alignment: center-right;
 }
+/* Except in a form, where a figure belongs next to the label that names it rather than at
+   the far edge of the box. Right alignment is for the trade row, whose amounts are read as
+   a column. The dialog is the whole selector, so all three of its fields agree and the one
+   on screen does not change side when the market method is switched. Alignment covers the
+   prompt as well as the value, so an empty field reads the same way. */
+.gm-dialog .text-field.qty { -fx-alignment: center-left; }
 
 .combo-box {
     -fx-background-color: -gm-surface;
@@ -347,6 +353,10 @@
     -fx-font-size: 9.5px; -fx-text-fill: -gm-tx-3;
     -fx-alignment: center-left; -fx-padding: 0 8 0 8;
 }
+/* A heading over a column of figures sits where the figures do. The class is put on the
+   TableColumn by Widgets.overFigures; JavaFX copies it onto the header. Same 8px padding
+   as .table-cell.numeric, so the right edges line up exactly. */
+.table-view .column-header.numeric .label { -fx-alignment: center-right; }
 .table-view .table-row-cell {
     -fx-background-color: -gm-surface; -fx-cell-size: 28; -fx-padding: 0;
     -fx-border-color: transparent transparent -gm-line-2 transparent; -fx-border-width: 0 0 1 0;
@@ -401,7 +411,13 @@
 .tab-pane > .tab-header-area > .headers-region > .tab:selected .tab-label {
     -fx-text-fill: -gm-accent; -fx-font-weight: 600;
 }
-.tab-pane > .tab-header-area > .headers-region > .tab:selected > .focus-indicator {
+/* The selected tab is underlined and nothing else. Modena rings a focused tab with a
+   rounded border, and the headers region clips it, so what is left of it is a bar down
+   either side of the tab. It is reached as a descendant rather than a child, which is how
+   Modena's own rule reaches it, and the focused pane is named because that is the only
+   state Modena draws it in. */
+.tab-pane > .tab-header-area > .headers-region > .tab .focus-indicator,
+.tab-pane:focused > .tab-header-area > .headers-region > .tab:selected .focus-indicator {
     -fx-border-width: 0; -fx-border-color: transparent;
 }
 .tab-pane > .tab-content-area { -fx-background-color: -gm-bg; }
@@ -521,7 +537,7 @@
 /* ---------- the FXML mirror's chart stand-in ----------
  *
  * Nothing in the app wears this class. SparkChart takes its height as a constructor
- * argument and paints on a Canvas, so Scene Builder cannot instantiate it — DesktopApp.fxml
+ * argument and paints on a Canvas, so Scene Builder cannot instantiate it, and DesktopApp.fxml
  * stands a plain Pane in its place, and this is what marks that hole out as a chart. */
 
 /*noinspection CssInvalidFunction*/
@@ -568,7 +584,7 @@
 /* ---------- Neon: the tokens a looked-up colour cannot carry ----------
  *
  * Everything above this line is Light's radii and fonts, and Dark keeps them. Neon is the
- * one theme that also changes shape and typeface, and JavaFX only looks up paints — so its
+ * one theme that also changes shape and typeface, and JavaFX only looks up paints, so its
  * radii, border widths and font families have to be restated. They are grouped by token
  * rather than by component, so each block below is one of Neon's overrides in full. */
 
@@ -599,7 +615,7 @@
     -fx-font-family: 'IBM Plex Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
 }
 
-/* r: 999 — the pill-shaped controls */
+/* r: 999, the pill-shaped controls */
 .theme-neon .button,
 .theme-neon .toggle-button,
 .theme-neon .text-field,
@@ -610,7 +626,7 @@
 }
 .theme-neon .progress-bar > .bar { -fx-background-radius: 999; }
 
-/* r-card: 0 and r-panel: 0 — square panels */
+/* r-card: 0 and r-panel: 0, square panels */
 .theme-neon .card,
 .theme-neon .framed,
 .theme-neon .opt-card,
@@ -619,7 +635,7 @@
     -fx-background-radius: 0; -fx-border-radius: 0;
 }
 
-/* r-pill: 999 — the meters and bars */
+/* r-pill: 999, the meters and bars */
 .theme-neon .pill,
 .theme-neon .meter,
 .theme-neon .meter-fill,
@@ -629,7 +645,7 @@
     -fx-background-radius: 999; -fx-border-radius: 999;
 }
 
-/* btn-bw: 2 — the filled buttons wear a thicker edge */
+/* btn-bw: 2, the filled buttons wear a thicker edge */
 .theme-neon .button.primary,
 .theme-neon .button.buy {
     -fx-border-width: 2;

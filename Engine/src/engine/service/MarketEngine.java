@@ -38,6 +38,7 @@ import engine.model.Trade;
 import engine.model.TradingMethod;
 import engine.model.User;
 
+import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -50,7 +51,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * The front — the only engine class the UI imports.
+ * The front: the only engine class the UI imports.
  *
  * <p>Two rules hold throughout: every DTO is built here (the UI never constructs one),
  * and no value is ever rounded (formatting is the UI's job, so the account identity
@@ -77,9 +78,16 @@ public class MarketEngine {
     /**
      * Who the console is acting as. Held by name rather than by reference so that loading
      * a session cannot leave it pointing at a user from the file before it, and
-     * deliberately not part of the saved state — a restored session asks who you are again.
+     * deliberately not part of the saved state, so a restored session asks who you are again.
      */
     private String currentUserName;
+
+    /**
+     * Whatever the front end asked to be kept with the last session it loaded, which for the desktop
+     * app is its theme. Opaque here: the engine writes it out and hands it back, and never looks
+     * inside it. Not itself saved, since it only describes the session that was.
+     */
+    private String restoredUiState;
 
     /**
      * Loads a new events file, replacing everything currently in memory.
@@ -89,7 +97,7 @@ public class MarketEngine {
         LoadedMarket market = loader.load(path);
         eventManager.load(market.events(), market.users());
         eventManager.applyInitialSubsidies(lmsr);
-        eventManager.applyInitialAllocations(executor);
+        eventManager.applyInitialAllocations();
         currentUserName = null;   // the new file has its own users
         fileLoaded = true;
     }
@@ -97,8 +105,8 @@ public class MarketEngine {
     /**
      * Creates an LMSR event in the market already loaded, run by whoever is acting.
      *
-     * <p>The event is subsidised the moment it exists — {@code b·ln2} into its own account,
-     * the provable worst case of the scoring rule — so it is solvent before anyone can trade
+     * <p>The event is subsidised the moment it exists, {@code b·ln2} into its own account,
+     * the provable worst case of the scoring rule, so it is solvent before anyone can trade
      * on it. That money comes from the house, not from the creator, and it is the one
      * documented exception to the conservation identity.
      *
@@ -136,11 +144,12 @@ public class MarketEngine {
      *
      * <p>Unlike an LMSR event this one costs its creator money: they are its Market Maker, so
      * {@code initialInvestment} leaves their balance for the event's account and comes back
-     * to them as {@code initialInvestment / d} shares of each option, offered straight back
-     * to the market at {@code d/2} a side. Nothing is created or destroyed — the identity
-     * holds across this call exactly.
+     * to them as {@code initialInvestment / d} shares of each option, which they then hold.
+     * Nothing is created or destroyed: the identity holds across this call exactly.
      *
-     * <p>An investment of 0 is allowed and opens an empty book, as a file may also do.
+     * <p>The book itself opens empty either way: the shares are the creator's to sell when
+     * they choose to, at whatever price they name, so an investment of 0 differs only in
+     * leaving them with nothing to sell.
      *
      * @return the event as the UI sees it
      */
@@ -176,7 +185,7 @@ public class MarketEngine {
         // Before the allocation: it is the market-maker link that entitles them to fund it.
         creator.addMarketMakerEvent(event.getId());
         // This event alone: applyInitialAllocations would re-fund every other one.
-        eventManager.allocateInitial(event, creator, executor);
+        eventManager.allocateInitial(event, creator);
         return viewOf(event);
     }
 
@@ -184,7 +193,7 @@ public class MarketEngine {
      * The rules both kinds of created event share, applied before anything is built.
      *
      * <p>These are the loader's rules, restated. {@code XmlEventLoader} cannot be reused for
-     * them because it is shaped around a file — it parses, then validates what it parsed —
+     * them because it is shaped around a file (it parses, then validates what it parsed)
      * and none of this came from one. Keep the two in step: an event typed into the desktop
      * app and an event read from XML have to be the same kind of thing.
      *
@@ -221,7 +230,7 @@ public class MarketEngine {
 
     /**
      * Trims and squeezes runs of whitespace, the way {@code NormalizedTextAdapter} does on
-     * the way out of a file — so a name typed with a stray double space becomes the same
+     * the way out of a file, so a name typed with a stray double space becomes the same
      * event name an XML file would have produced. {@code null} reads as empty and is then
      * refused by the caller with a message about the field rather than a
      * {@code NullPointerException}.
@@ -231,8 +240,8 @@ public class MarketEngine {
     }
 
     /**
-     * Writes the current session — every event with its prices, balances and trade
-     * history — to {@code path} plus {@value #STATE_EXTENSION}.
+     * Writes the current session, every event with its prices, balances and trade
+     * history, to {@code path} plus {@value #STATE_EXTENSION}.
      *
      * <p>{@link EventManager} holds all of it and is {@link java.io.Serializable}, so one
      * {@code writeObject} captures the lot. The user supplies the path without an
@@ -241,9 +250,28 @@ public class MarketEngine {
      * @return the path of the file actually written, for the UI to report
      */
     public String saveState(String path) {
+        return saveState(path, null);
+    }
+
+    /**
+     * The same, carrying one string of the front end's own back with it: the desktop app
+     * saves the theme the window was wearing, so reopening the session reopens the look.
+     *
+     * <p>The engine never reads it. It is written as a second object <em>after</em> the
+     * state, which is what keeps the file backwards compatible in both directions: a
+     * session saved before this existed simply runs out of file where the string would be
+     * (see {@link #loadState}), and a session saved with one still begins with the
+     * {@link EventManager} that older code expects.
+     *
+     * @param uiState anything the caller wants back on load, or {@code null} for nothing.
+     *                {@code String} rather than an object so the engine cannot end up
+     *                depending on a UI type
+     */
+    public String saveState(String path, String uiState) {
         File file = stateFile(path);
         try (ObjectOutputStream stream = new ObjectOutputStream(new FileOutputStream(file))) {
             stream.writeObject(eventManager);
+            stream.writeObject(uiState);
             return file.getPath();
         } catch (FileNotFoundException e) {
             // What this really means here: the folder is missing, or is not writable.
@@ -259,13 +287,24 @@ public class MarketEngine {
      * loaded now. An unreadable file leaves the current session untouched, because the
      * field is only reassigned once the read has succeeded.
      *
+     * <p>Anything the caller stored through {@link #saveState(String, String)} is waiting in
+     * {@link #getRestoredUiState()} afterwards.
+     *
      * @return the path of the file actually read, for the UI to report
      */
     public String loadState(String path) {
         File file = stateFile(path);
         try (ObjectInputStream stream = new ObjectInputStream(new FileInputStream(file))) {
-            eventManager = (EventManager) stream.readObject();
+            EventManager restored = (EventManager) stream.readObject();
+            // Nothing has been built here, since this state was deserialised rather than
+            // loaded, so the
+            // one invariant the money paths lean on is re-checked before it is adopted. Read
+            // into a local first: a session saved before every event had to have a market
+            // maker must leave the current one untouched, like any other rejected file.
+            restored.requireEveryEventHasAMarketMaker();
+            eventManager = restored;
             currentUserName = null;   // the restored session has its own users
+            restoredUiState = readUiState(stream);
             fileLoaded = true;
             return file.getPath();
         } catch (FileNotFoundException e) {
@@ -277,7 +316,33 @@ public class MarketEngine {
     }
 
     /**
-     * The path is normalised first ({@link UserPath}) — a Windows "Copy as path" arrives
+     * The front end's own string out of the session just restored, or {@code null} if that
+     * file carried none, which is the case for every session saved before
+     * {@link #saveState(String, String)} existed, and for every one the console saves.
+     *
+     * <p>Read from the field rather than returned by {@code loadState} so the console, which
+     * has nothing to restore, can keep ignoring it.
+     */
+    public String getRestoredUiState() {
+        return restoredUiState;
+    }
+
+    /**
+     * The trailing string, if the file has one. A session written before it existed ends
+     * after the {@link EventManager}, so hitting the end of the file here is the older
+     * format rather than a corrupt one, and reads as "nothing stored".
+     */
+    private static String readUiState(ObjectInputStream stream) throws IOException, ClassNotFoundException {
+        try {
+            Object stored = stream.readObject();
+            return stored instanceof String text ? text : null;
+        } catch (EOFException end) {
+            return null;
+        }
+    }
+
+    /**
+     * The path is normalised first ({@link UserPath}): a Windows "Copy as path" arrives
      * quoted, and {@code "C:\s\session"} + {@code .gm} would otherwise become
      * {@code "C:\s\session".gm}, an extension the check below cannot even see.
      */
@@ -291,7 +356,7 @@ public class MarketEngine {
      *
      * <p>Lets the UI turn a command away before it prompts for anything, rather than
      * collecting an event id and a share count only to fail on the engine call. The
-     * commands below still check for themselves — they can't trust a caller to have asked.
+     * commands below still check for themselves; they can't trust a caller to have asked.
      */
     public boolean isFileLoaded() {
         return fileLoaded;
@@ -316,11 +381,7 @@ public class MarketEngine {
     /** Every user in the file, for the UI to offer as a choice. */
     public List<UserView> getUsers() {
         requireFileLoaded();
-        List<UserView> views = new ArrayList<>();
-        for (User user : eventManager.getAllUsers()) {
-            views.add(buildUserView(user));
-        }
-        return views;
+        return eventManager.getAllUsers().stream().map(this::buildUserView).toList();
     }
 
     /** The selected user's account: their money and everything they hold. */
@@ -331,11 +392,7 @@ public class MarketEngine {
 
     public List<EventView> getEvents() {
         requireFileLoaded();
-        List<EventView> views = new ArrayList<>();
-        for (Event event : eventManager.getAllEvents()) {
-            views.add(viewOf(event));
-        }
-        return views;
+        return eventManager.getAllEvents().stream().map(this::viewOf).toList();
     }
 
     /** One event as the UI sees it, the same way whether it was listed or just created. */
@@ -365,11 +422,11 @@ public class MarketEngine {
      *
      * <p>An LMSR price is a function of how many shares exist rather than of anything the
      * trade log records, so the series cannot be read off the history the way an order
-     * book's can — it has to be replayed through {@link LmsrCalculator}, and that belongs
+     * book's can: it has to be replayed through {@link LmsrCalculator}, and that belongs
      * on this side of the facade rather than in a UI.
      *
      * <p>The replay starts at no shares at all, which is a real price and the one the market
-     * opened at — 0.5 on each side of a binary event, whatever {@code b} is — so the series
+     * opened at (0.5 on each side of a binary event, whatever {@code b} is), so the series
      * begins there rather than at the first transaction. An event nobody has traded has a
      * price, and a chart of one should say so instead of being empty.
      *
@@ -415,8 +472,8 @@ public class MarketEngine {
     /**
      * Places an order in an event's book on behalf of the selected user.
      *
-     * <p>What comes back says what happened immediately — shares bought from a resting
-     * seller, or minted with a buyer of the other option — and how much of the order is now
+     * <p>What comes back says what happened immediately (shares bought from a resting
+     * seller, or minted with a buyer of the other option) and how much of the order is now
      * waiting for someone to take the other side.
      */
     public OrderResult placeOrder(int eventId, int optionIndex, OrderSide side, double price, long quantity) {
@@ -457,7 +514,7 @@ public class MarketEngine {
      *
      * <p>Nothing here is validated beyond the shape of the request: it is a price tag, not
      * a purchase, and whether the selected user can afford it is {@link #participate}'s
-     * question at the moment they commit. Nothing is mutated either — the figures are the
+     * question at the moment they commit. Nothing is mutated either: the figures are the
      * same ones {@code participate} would compute, taken from the same calculator.
      *
      * @throws InvalidShareAmountException if {@code shares} is not a positive whole number
@@ -508,7 +565,7 @@ public class MarketEngine {
         requireLmsrMarket(event);
 
         if (!event.isActive()) {
-            throw new EventClosedException("Event " + eventId + " is already closed — no more purchases.");
+            throw new EventClosedException("Event " + eventId + " is already closed; no more purchases.");
         }
         validateOptionIndex(optionIndex);
         if (shares <= 0) {
@@ -545,7 +602,7 @@ public class MarketEngine {
         Account account = event.getMMAccount();
         account.deposit(sharesCost);
         if (commission > 0) {
-            account.addCommission(commission);
+            payCommission(event, eventManager.requireMarketMaker(eventId), commission);
         }
         buyer.withdraw(totalPaid);
         buyer.addShares(eventId, optionIndex, shares);
@@ -580,16 +637,28 @@ public class MarketEngine {
                 : closeOrderBookEvent(event, winningOptionIndex);
     }
 
-    /** Settles an LMSR event out of its subsidised account. */
+    /**
+     * Settles an LMSR event out of its subsidised account.
+     *
+     * <p>The account is left empty. What the winners are owed goes to them, the commission
+     * goes to the Market Maker, and whatever the scoring rule did not spend (the unused
+     * part of the {@code b·ln2} subsidy, plus everything buyers paid in) goes back to the
+     * Market Maker too: they put the subsidy up, so the remainder is theirs to take back.
+     *
+     * <p>The subsidy itself came from the house rather than from them, so this is the one
+     * settlement that hands out money nobody put in: the same b·ln2 the conservation
+     * identity already makes an exception for, arriving where it can be seen.
+     */
     private SettlementResult closeLmsrEvent(Event event, int winningOptionIndex) {
         int eventId = event.getId();
         Account account = event.getMMAccount();
+        User marketMaker = eventManager.requireMarketMaker(eventId);
         long[] sharesPerOption = {
                 event.getOption(0).getShares(),
                 event.getOption(1).getShares()
         };
 
-        // The full obligation — one unit per winning share — leaves the account either way.
+        // The full obligation, one unit per winning share, leaves the account either way.
         double grossWinnings = sharesPerOption[winningOptionIndex] * LMSR_SHARE_VALUE;
         account.withdraw(grossWinnings);
 
@@ -600,7 +669,7 @@ public class MarketEngine {
                 : 0.0;
         double commissionMoved = grossWinnings * commissionRate;
         if (commissionMoved > 0) {
-            account.addCommission(commissionMoved);
+            payCommission(event, marketMaker, commissionMoved);
         }
         double totalPaidToWinners = grossWinnings - commissionMoved;
 
@@ -614,21 +683,31 @@ public class MarketEngine {
             }
         }
 
+        // Whatever the payout did not need. Never negative, which is what b·ln2 buys, but
+        // taken only when it is genuinely positive, so rounding can't hand anyone a debt.
+        double subsidyReturned = 0.0;
+        if (account.getBalance() > 0) {
+            subsidyReturned = account.getBalance();
+            account.withdraw(subsidyReturned);
+            marketMaker.deposit(subsidyReturned);
+        }
+
         event.close(winningOptionIndex);
 
         return new SettlementResult(eventId,
                 event.getOption(winningOptionIndex).getName(),
                 sharesPerOption,
                 commissionMoved,
-                totalPaidToWinners);
+                totalPaidToWinners,
+                subsidyReturned);
     }
 
     /**
      * Settles an order-book event.
      *
      * <p>The book closes to new orders first, and everything still waiting in it is
-     * released — the cash behind resting buys goes back to being spendable, the shares
-     * behind resting sells back to being sellable — because none of it will ever trade now.
+     * released (the cash behind resting buys goes back to being spendable, the shares
+     * behind resting sells back to being sellable) because none of it will ever trade now.
      *
      * <p>Then every holder of the winning option is paid the base value per share out of
      * the event's account, which has been collecting exactly that much per pair ever
@@ -672,23 +751,38 @@ public class MarketEngine {
         Account account = event.getMMAccount();
         account.withdraw(grossWinnings);
         if (commissionMoved > 0) {
-            account.addCommission(commissionMoved);
-            User marketMaker = eventManager.getMarketMaker(eventId);
-            if (marketMaker != null) {
-                marketMaker.deposit(commissionMoved);
-            }
+            payCommission(event, eventManager.requireMarketMaker(eventId), commissionMoved);
         }
 
         event.close(winningOptionIndex);
 
+        // Nothing to give back: the account took in exactly d per pair ever created and has
+        // just paid out exactly d per winning share, and there is one winning share a pair.
         return new SettlementResult(eventId,
                 event.getOption(winningOptionIndex).getName(),
                 new long[] { event.getOption(0).getShares(), event.getOption(1).getShares() },
                 commissionMoved,
-                grossWinnings - commissionMoved);
+                grossWinnings - commissionMoved,
+                0.0);
     }
 
     // --- internals/private methods ---
+
+    /**
+     * Books the operator's cut: recorded on the event, and paid into the Market Maker's
+     * balance. The same two lines as {@code OrderExecutor.payCommission}, for the trades
+     * that don't go through a book.
+     *
+     * <p>The two pots are separate on purpose: {@code addCommission} never touches the
+     * account's balance, which exists to cover the payout and nothing else, so this is the
+     * record and the deposit is the money.
+     *
+     * @param marketMaker the event's maker, from {@code EventManager.requireMarketMaker}
+     */
+    private void payCommission(Event event, User marketMaker, double commission) {
+        event.getMMAccount().addCommission(commission);
+        marketMaker.deposit(commission);
+    }
 
     private EventStatusView buildStatusView(Event event) {
         long q0 = event.getOption(0).getShares();
@@ -739,8 +833,9 @@ public class MarketEngine {
         Collections.reverse(history);   // newest first
         Integer winner = event.getWinningOptionIndex();
 
-        // Only an event that was given an initial investment ever had an opening quote; one
-        // that was not opened with an empty book, and its chart has nothing to start from.
+        // Only an event that was given an initial investment opened at a price: its maker
+        // paid d for every pair, which values each side at d/2. One that was not opened with
+        // nobody holding anything, and its chart has nothing to start from.
         Double openingPrice = event.getTradingMethod() instanceof TradingMethod.OrderBook settings
                 && settings.initialInvestment() > 0 ? settings.openingPrice() : null;
 
@@ -760,12 +855,10 @@ public class MarketEngine {
     }
 
     private static List<OrderLineView> orderLines(List<Order> orders) {
-        List<OrderLineView> lines = new ArrayList<>();
-        for (Order order : orders) {
-            lines.add(new OrderLineView(order.getSequence(), order.getUserName(),
-                    order.getPrice(), order.getRemaining()));
-        }
-        return lines;
+        return orders.stream()
+                .map(order -> new OrderLineView(order.getSequence(), order.getUserName(),
+                        order.getPrice(), order.getRemaining()))
+                .toList();
     }
 
     /**
@@ -776,7 +869,7 @@ public class MarketEngine {
     private void requireLmsrMarket(Event event) {
         if (!event.isLmsr()) {
             throw new UnsupportedMethodException("Event " + event.getId() + " ('" + event.getName()
-                    + "') trades on an order book — place an order instead.");
+                    + "') trades on an order book; place an order instead.");
         }
     }
 
@@ -784,14 +877,14 @@ public class MarketEngine {
     private void requireOrderBookMarket(Event event) {
         if (!event.isOrderBook()) {
             throw new UnsupportedMethodException("Event " + event.getId() + " ('" + event.getName()
-                    + "') is an LMSR market — it has no order book. Participate in it instead.");
+                    + "') is an LMSR market and has no order book. Participate in it instead.");
         }
     }
 
     /**
      * The user the console is acting as.
      *
-     * @throws NoUserSelectedException if none has been chosen — every command that moves
+     * @throws NoUserSelectedException if none has been chosen; every command that moves
      *                                 money belongs to somebody
      */
     private User requireSelectedUser() {
@@ -805,14 +898,11 @@ public class MarketEngine {
      * Only an event's Market Maker may seal it: Appendix B gives them the job of declaring
      * the winning option, and they are the one whose money is at stake in it.
      *
-     * <p>An event the file gave no Market Maker is open to whoever is selected — there is
-     * nobody to restrict it to.
+     * <p>This applies to every event and both trading methods, because every event has a
+     * maker: the user the file names, or the one who created it here.
      */
     private void requireMarketMaker(Event event) {
-        User marketMaker = eventManager.getMarketMaker(event.getId());
-        if (marketMaker == null) {
-            return;
-        }
+        User marketMaker = eventManager.requireMarketMaker(event.getId());
         User user = requireSelectedUser();
         if (!user.getName().equals(marketMaker.getName())) {
             throw new NotMarketMakerException("Only '" + marketMaker.getName()
@@ -826,23 +916,28 @@ public class MarketEngine {
     }
 
     private UserView buildUserView(User user) {
-        List<HoldingView> holdings = new ArrayList<>();
-        for (int eventId : user.getEventIds()) {
-            Event event = eventManager.getEvent(eventId);
-            holdings.add(new HoldingView(
-                    eventId,
-                    event.getName(),
-                    List.of(event.getOption(0).getName(), event.getOption(1).getName()),
-                    new long[] { user.getShares(eventId, 0), user.getShares(eventId, 1) },
-                    new long[] { user.getLockedShares(eventId, 0), user.getLockedShares(eventId, 1) }));
-        }
+        List<HoldingView> holdings = user.getEventIds().stream()
+                .map(eventId -> holdingOf(user, eventManager.getEvent(eventId)))
+                .toList();
         return new UserView(
                 user.getName(),
+                user.getInitialCash(),
                 user.getBalance(),
                 user.getReservedCash(),
                 user.getAvailableCash(),
                 user.getMarketMakerEventIds(),
                 holdings);
+    }
+
+    /** What one user holds in one event, both options at once, a row of their account. */
+    private static HoldingView holdingOf(User user, Event event) {
+        int eventId = event.getId();
+        return new HoldingView(
+                eventId,
+                event.getName(),
+                List.of(event.getOption(0).getName(), event.getOption(1).getName()),
+                new long[] { user.getShares(eventId, 0), user.getShares(eventId, 1) },
+                new long[] { user.getLockedShares(eventId, 0), user.getLockedShares(eventId, 1) });
     }
 
     private void requireFileLoaded() {

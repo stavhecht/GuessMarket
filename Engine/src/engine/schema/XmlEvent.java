@@ -43,7 +43,7 @@ public class XmlEvent {
     @XmlJavaTypeAdapter(NormalizedTextAdapter.class)
     private String name;
 
-    /** A primitive, so a missing {@code <id>} arrives as 0 — the loader rejects that. */
+    /** A primitive, so a missing {@code <id>} arrives as 0, which the loader rejects. */
     @XmlElement(name = "id", required = true)
     private int id;
 

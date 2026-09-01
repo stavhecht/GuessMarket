@@ -24,7 +24,7 @@ import java.util.List;
  * </GM-user>
  * }</pre>
  *
- * <p>{@code GM-mareket-maker} is spelled the way the XSD spells it — see {@link XmlOrderBook}.
+ * <p>{@code GM-mareket-maker} is spelled the way the XSD spells it; see {@link XmlOrderBook}.
  */
 @XmlAccessorType(XmlAccessType.FIELD)
 public class XmlUser {
@@ -33,7 +33,7 @@ public class XmlUser {
     @XmlJavaTypeAdapter(NormalizedTextAdapter.class)
     private String name;
 
-    /** A primitive, so a missing {@code <initial-cash>} arrives as 0 — which is a legal balance. */
+    /** A primitive, so a missing {@code <initial-cash>} arrives as 0, which is a legal balance. */
     @XmlElement(name = "initial-cash", required = true)
     private int initialCash;
 

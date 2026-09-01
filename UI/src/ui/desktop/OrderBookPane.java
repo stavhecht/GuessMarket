@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The body of an order-book event: both options side by side as ladders — the sell queue
+ * The body of an order-book event: both options side by side as ladders: the sell queue
  * above, the spread, the buy queue below, and a form under each for taking either side.
  *
  * <p>The two options are shown together because they are only independent up to a point:
@@ -123,6 +123,11 @@ class OrderBookPane extends HBox {
             limit.setMinWidth(60);
             limit.textProperty().addListener((observable, was, now) -> reprice());
 
+            // A button that has shrunk to "S..." is not a button any more, so neither of
+            // these gives width back: the estimate beside them is the label that truncates.
+            sell.setMinWidth(Region.USE_PREF_SIZE);
+            buy.setMinWidth(Region.USE_PREF_SIZE);
+
             sell.setOnAction(action -> place(OrderSide.SELL));
             buy.setOnAction(action -> place(OrderSide.BUY));
 
@@ -139,7 +144,7 @@ class OrderBookPane extends HBox {
         void show(OptionBookView option, boolean open) {
             name.setText(option.name());
             // Pointed at this event's last traded price, which reads null until something
-            // trades — the ticker shows that as a dash and lands on the first real price.
+            // trades, and the ticker shows that as a dash before landing on the first real price.
             priceTicker.follow(app.live().lastPrice(eventId, optionIndex));
             outstanding.setText(Widgets.shares(option.sharesOutstanding()) + " sh");
             last.setText(Widgets.price(option.lastPrice()));
@@ -160,7 +165,7 @@ class OrderBookPane extends HBox {
                 deepest = Math.max(deepest, line.remaining());
             }
 
-            // Asks read downwards to the spread, so the best one sits closest to it — the
+            // Asks read downwards to the spread, so the best one sits closest to it, while the
             // engine hands them over best first, which is the other way round.
             List<OrderLineView> asks = new ArrayList<>(option.asks());
             java.util.Collections.reverse(asks);

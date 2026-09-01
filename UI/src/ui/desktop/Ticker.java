@@ -21,23 +21,23 @@ import java.util.function.DoubleFunction;
  * <p>It animates the <em>value</em> and formats each step, rather than sliding digits: the
  * figures here are money and probabilities, they are grouped and rounded by {@link Widgets},
  * and a rolling odometer would have to take that formatting apart. Counting is also the
- * honest picture of what happened — the number really did pass through those values.
+ * honest picture of what happened: the number really did pass through those values.
  *
  * <p><b>A ticker follows a property; it is never told a value.</b> That is what makes it
- * correct. The screens are polled — every command ends in {@code DesktopApp.refresh()},
+ * correct. The screens are polled: every command ends in {@code DesktopApp.refresh()},
  * which rereads the engine and writes the same figures again, and a tab switch, a filter and
- * a selection all do the same — so being handed a value says nothing about whether anything
+ * a selection all do the same, so being handed a value says nothing about whether anything
  * moved. A property does: {@code set} with an unchanged value fires nothing at all. So
  * {@link #follow} subscribes, and the two cases fall out of the subscription itself:
  *
  * <ul>
- *   <li>the property <b>fires</b> — the figure genuinely moved, so roll to it;
- *   <li>the ticker is <b>re-pointed</b> at a different property — a different event's price
+ *   <li>the property <b>fires</b>, the figure genuinely moved, so roll to it;
+ *   <li>the ticker is <b>re-pointed</b> at a different property, a different event's price
  *       or a different user's balance, which is not this one's next value, so land on it
  *       immediately. Rolling here would invent a move that never happened.
  * </ul>
  *
- * <p>Re-pointed at the property it is already following, it does nothing — so the selection
+ * <p>Re-pointed at the property it is already following, it does nothing, so the selection
  * path may call {@link #follow} on every refresh without consequence, which is exactly how
  * it is used.
  *
@@ -63,7 +63,7 @@ final class Ticker {
     /** Where the running roll is headed, so the same target twice does not restart it. */
     private double target;
 
-    /** Whether a number rather than a dash is showing — a dash has no value to roll from. */
+    /** Whether a number rather than a dash is showing; a dash has no value to roll from. */
     private boolean showing;
 
     /** The figure being followed. Held so it can be unsubscribed when the ticker moves on. */
@@ -101,7 +101,7 @@ final class Ticker {
     }
 
     /**
-     * What is on screen this instant, mid-roll included — for anything drawn from the same
+     * What is on screen this instant, mid-roll included, for anything drawn from the same
      * figure, such as the meter under an LMSR price, which has to move with the digits
      * rather than jump to the answer while they are still counting.
      *
@@ -117,7 +117,7 @@ final class Ticker {
      *
      * <p>The wildcard is what lets a nullable figure through: an order book's last traded
      * price is an {@code ObservableValue<Double>} that reads {@code null} until something
-     * trades, and a {@code null} renders as {@link Widgets#NONE} — a dash, which is not a
+     * trades, and a {@code null} renders as {@link Widgets#NONE}, a dash, which is not a
      * zero and so is neither rolled to nor rolled from.
      *
      * @param figure the property to follow, or {@code null} to empty the label
@@ -143,13 +143,13 @@ final class Ticker {
      *
      * <p>The two screens are tabs, and only one of them is in front of anyone at a time. A
      * purchase made on the Events tab moves the account balance on the Users tab, which then
-     * rolls to its new value with nobody watching — and by the time that tab is opened the
+     * rolls to its new value with nobody watching, and by the time that tab is opened the
      * roll is long finished, so the money appears to have always been what it now is. Gated
      * like this, the movement waits and plays on arrival, which is the only moment it can
      * actually be seen.
      *
-     * <p>Only the <em>animation</em> waits. A figure that would not have rolled anyway — the
-     * first one shown, or one this ticker has just been re-pointed at — is written out
+     * <p>Only the <em>animation</em> waits. A figure that would not have rolled anyway (the
+     * first one shown, or one this ticker has just been re-pointed at) is written out
      * immediately, so a hidden screen is never wrong, only still.
      */
     void onlyWhile(ObservableBooleanValue inView) {
@@ -187,7 +187,7 @@ final class Ticker {
         }
 
         // A figure that is not a number cannot be interpolated, and neither can the first
-        // one shown — there is nothing behind it to count up from.
+        // one shown: there is nothing behind it to count up from.
         boolean wouldRoll = mayRoll && showing
                 && Double.isFinite(wanted) && Double.isFinite(rolling.get());
 
@@ -209,7 +209,7 @@ final class Ticker {
         timeline = new Timeline(new KeyFrame(ROLL,
                 new KeyValue(rolling, wanted, Interpolator.EASE_OUT)));
         // The last pulse of a Timeline lands on the key value, but only to within the
-        // pulse — and this figure is the one the user reads off, so it is set exactly.
+        // pulse, and this figure is the one the user reads off, so it is set exactly.
         timeline.setOnFinished(done -> {
             timeline = null;
             land(wanted);
@@ -224,7 +224,7 @@ final class Ticker {
 
     /**
      * The same, for a figure the design leaves blank rather than dashed when there is
-     * nothing to show — the delta beside a potential outcome has no dash of its own.
+     * nothing to show: the delta beside a potential outcome has no dash of its own.
      */
     void clear(String placeholder) {
         if (figure != null) {
@@ -234,7 +234,7 @@ final class Ticker {
         stop();
         held = false;
         showing = false;
-        // Anything drawn from this figure — a meter bound to value() — has to empty with it,
+        // Anything drawn from this figure, a meter bound to value(), has to empty with it,
         // so the rolling value is zeroed first and the placeholder written over the top of
         // the text that zeroing produces.
         rolling.set(0);
@@ -244,8 +244,8 @@ final class Ticker {
     /**
      * Puts a value on screen with no animation, through the same listener the roll uses.
      *
-     * <p>Setting the property is not enough on its own — it fires nothing when the value is
-     * already there, which is the case at the end of every roll — so the text is written
+     * <p>Setting the property is not enough on its own: it fires nothing when the value is
+     * already there, which is the case at the end of every roll, so the text is written
      * directly as well.
      */
     private void land(double value) {

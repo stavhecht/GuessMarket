@@ -5,8 +5,8 @@ package engine.dto;
  *
  * @param kind         "MATCH" when it met a seller, "MINT" when it and a buyer of the other
  *                     option created a new pair between them
- * @param counterparty the other party, or {@code null} for a mint — there is no seller, the
- *                     shares were created
+ * @param counterparty the other party, or {@code null} for a mint, where there is no
+ *                     seller and the shares were created
  */
 public record FillView(String kind,
                        String optionName,

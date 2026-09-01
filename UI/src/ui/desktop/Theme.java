@@ -20,13 +20,13 @@ import java.util.regex.Pattern;
  *
  * <p>The sheet is {@code guessmarket.css}, sitting next to this class. Every colour in the
  * design is a token declared there as a JavaFX looked-up colour ({@code -gm-accent} and
- * friends), and a theme is one block that redefines the set — so switching a look is
+ * friends), and a theme is one block that redefines the set, so switching a look is
  * switching a single style class on the scene root, not loading a second stylesheet.
  *
  * <p>A few things are painted from Java rather than styled: {@link SparkChart} draws on a
  * {@code Canvas}, {@link OrderBookPane} tints a depth bar inline, and {@code DesktopApp}
  * fills a couple of {@code Circle}s. Those read their colours through {@link #token}, which
- * is parsed out of the same stylesheet at class-load time — so the CSS file is the only
+ * is parsed out of the same stylesheet at class-load time, so the CSS file is the only
  * place a colour is written down, and a Java-painted node cannot drift from a styled one.
  *
  * <p>The exception is the two font families, which are not colours and so cannot be looked
@@ -34,7 +34,7 @@ import java.util.regex.Pattern;
  * rather than parsed.
  *
  * <p>JavaFX has no {@code text-transform} and no {@code letter-spacing}, so the two places
- * the design leans on them — the small caps labels, and Neon's shouting buttons — are
+ * the design leans on them (the small caps labels, and Neon's shouting buttons) are
  * uppercased in Java by {@link Widgets} instead.
  */
 enum Theme {
@@ -79,6 +79,24 @@ enum Theme {
         return current;
     }
 
+    /**
+     * The theme one of these names, or {@code null} for a name that is not one of them.
+     *
+     * <p>What a saved session stores is {@link #name()}, so this is how it comes back. It
+     * has to tolerate anything: the string arrives out of a file the app cannot vouch for,
+     * and a session written by a build with a theme this one does not have is a wrong look
+     * rather than a broken session, so an unknown name leaves the window as it is instead
+     * of throwing, which is what {@code Enum.valueOf} would do.
+     */
+    static Theme named(String name) {
+        for (Theme theme : values()) {
+            if (theme.name().equals(name)) {
+                return theme;
+            }
+        }
+        return null;
+    }
+
     /** The value of one design token, e.g. {@code token("up-bg")}. */
     String token(String name) {
         if (tokens == null) {
@@ -114,7 +132,7 @@ enum Theme {
     }
 
     /**
-     * Also dresses a dialog, which JavaFX gives a scene of its own — without this a
+     * Also dresses a dialog, which JavaFX gives a scene of its own; without this a
      * {@code ChoiceDialog} opens in the platform's default grey next to a dark window.
      *
      * <p>The theme class goes on the pane rather than on that scene's root: a looked-up
@@ -159,7 +177,7 @@ enum Theme {
      * The {@code -gm-name: value} declarations of one selector's block.
      *
      * <p>Only the block whose selector stands alone at the start of a line is read, which is
-     * what separates {@code .theme-neon { ... }} — the token block — from the rules further
+     * what separates {@code .theme-neon { ... }}, the token block, from the rules further
      * down the sheet that begin {@code .theme-neon .button, ...}.
      */
     private static Map<String, String> colours(String selector) {
@@ -167,7 +185,7 @@ enum Theme {
                 Pattern.MULTILINE).matcher(SHEET_TEXT);
         if (!block.find()) {
             throw new IllegalStateException("No " + selector + " block in " + SHEET_NAME
-                    + " — the design tokens are read out of it.");
+                    + ": the design tokens are read out of it.");
         }
         Map<String, String> found = new LinkedHashMap<>();
         Matcher declaration = Pattern.compile("-gm-([a-z0-9-]+)\\s*:\\s*([^;]+);")

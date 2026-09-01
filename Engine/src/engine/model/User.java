@@ -15,7 +15,7 @@ import java.util.Set;
  *
  * <p>Money is held in two figures rather than one. {@link #getBalance()} is what the user
  * owns; {@link #getReservedCash()} is the part of it already promised to orders resting in
- * an order book. Only the difference — {@link #getAvailableCash()} — may be committed to
+ * an order book. Only the difference, {@link #getAvailableCash()}, may be committed to
  * something new, which is what makes a resting order always executable: the money for it
  * was set aside when it was placed and cannot be spent twice.
  *
@@ -23,7 +23,7 @@ import java.util.Set;
  * so the same share cannot be sold to two buyers.
  *
  * <p>Nothing here decides anything. Every method is a movement that a caller has already
- * checked it can afford — {@code engine.service} owns the rules, as it does for {@link Event}.
+ * checked it can afford; {@code engine.service} owns the rules, as it does for {@link Event}.
  */
 public class User implements Serializable {
 
@@ -74,7 +74,7 @@ public class User implements Serializable {
     }
 
     /**
-     * Makes this user the Market Maker of one more event — the one they have just created.
+     * Makes this user the Market Maker of one more event: the one they have just created.
      *
      * <p>Copy-on-write rather than an {@code add}, and that is not a style choice: a session
      * saved before this method existed deserialises the immutable list the constructor used
@@ -119,14 +119,14 @@ public class User implements Serializable {
         reservedCash += amount;
     }
 
-    /** Gives money back that an order no longer needs — it filled cheaply, or was cancelled. */
+    /** Gives money back that an order no longer needs: it filled cheaply, or was cancelled. */
     public void release(double amount) {
         reservedCash -= amount;
     }
 
     /**
      * Pays out of money that was already reserved: the reservation and the balance both
-     * fall, so the available cash is unchanged — it was never available to begin with.
+     * fall, so the available cash is unchanged: it was never available to begin with.
      */
     public void spendReserved(double amount) {
         reservedCash -= amount;

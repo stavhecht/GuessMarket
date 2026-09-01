@@ -72,7 +72,7 @@ public class InputReader {
      * Holds the screen until the user presses Enter, then returns.
      *
      * <p>Used after a listing so the menu does not redraw over it the instant it
-     * appears — the user decides when they are done reading. Whatever they type is
+     * appears: the user decides when they are done reading. Whatever they type is
      * discarded; only the Enter matters.
      *
      * <p>It is Enter rather than any single key because the console hands Java one

@@ -20,7 +20,7 @@ import java.util.List;
  * Runs an order through an event's book: match, then mint, then wait.
  *
  * <p>It lives outside {@link engine.model.OrderBook} because a fill is not something a
- * book can do on its own — it moves money between two users and the event's account, none
+ * book can do on its own: it moves money between two users and the event's account, none
  * of which the book knows about. The book keeps the queue; this decides what happens.
  *
  * <p>Stateless: everything it needs arrives as an argument, so there is one of these for
@@ -29,7 +29,7 @@ import java.util.List;
  * <h2>Why this is atomic without a rehearsal</h2>
  *
  * <p>The rest of the engine validates everything before the first mutation. Matching can't
- * work that way — what a fill costs depends on the orders it meets. Instead the submitter
+ * work that way, because what a fill costs depends on the orders it meets. Instead the submitter
  * is checked against the <em>worst case</em> up front: no fill ever costs a buyer more than
  * their limit price per share (a resting ask is cheaper by definition, and a mint charges
  * the complement {@code d − restingPrice}, which is at most the limit price because the two
@@ -40,6 +40,12 @@ import java.util.List;
  * locked when their order came to rest, so it is still there when the fill arrives.
  */
 public class OrderExecutor {
+
+    /**
+     * The smallest price anyone can name, and the gap between the base value and the
+     * largest: a price is a sum of money, so it stops at the cent.
+     */
+    public static final double PRICE_TICK = 0.01;
 
     /**
      * Places an order and takes it as far as it goes.
@@ -89,7 +95,7 @@ public class OrderExecutor {
                           long quantity) {
         if (!event.isActive()) {
             throw new EventClosedException("Event " + event.getId()
-                    + " is closed — its book takes no more orders.");
+                    + " is closed; its book takes no more orders.");
         }
         if (optionIndex < 0 || optionIndex >= Event.OPTION_COUNT) {
             throw new InvalidOrderException("Option must be 1 or " + Event.OPTION_COUNT + ".");
@@ -97,11 +103,17 @@ public class OrderExecutor {
         if (quantity <= 0) {
             throw new InvalidOrderException("The number of shares must be a positive whole number.");
         }
-        // A share is worth between nothing and the base value; outside that the order could
-        // never be part of a sane trade.
-        if (price <= 0 || price > book.getD()) {
+        // A share is worth strictly between nothing and the base value, and prices are named
+        // in whole cents, so the range runs from one tick to one tick below d. The ceiling
+        // is the rule that makes the market two-sided: at d there is nothing left for a buyer
+        // of the other option to offer, and no mint could ever happen. The floor is what keeps
+        // that ceiling honest, because a mint charges the complement d − restingPrice: without
+        // it a bid of 0.001 would have the other side pay d − 0.001, above the stated maximum.
+        double highest = book.getD() - PRICE_TICK;
+        if (price < PRICE_TICK || price > highest) {
             throw new InvalidOrderException(String.format(
-                    "The price must be more than 0 and at most the base value of %.2f.", book.getD()));
+                    "The price must be between %.2f and %.2f, one whole tick below the base value of %.2f.",
+                    PRICE_TICK, highest, book.getD()));
         }
 
         if (side == OrderSide.BUY) {
@@ -206,8 +218,8 @@ public class OrderExecutor {
      * <p>Neither of them is selling anything, so nothing changes hands: a pair of shares is
      * created, one for each of them, and both payments go into the event's account. That
      * account is then holding exactly {@code d} for a pair that will be worth exactly
-     * {@code d} at settlement — one of the two shares pays out, the other is worthless —
-     * so minting can never leave the event unable to pay.
+     * {@code d} at settlement, since one of the two shares pays out and the other is
+     * worthless, so minting can never leave the event unable to pay.
      *
      * <p>The waiting order is filled at the price it asked for; the arriving one pays the
      * complement, {@code d − thatPrice}, which is at most what it offered and often less.
@@ -286,7 +298,7 @@ public class OrderExecutor {
         return order.getRemaining() * order.getPrice() * (1 + purchaseCommissionRate(event));
     }
 
-    /** The rate charged on each purchase — zero on an event that takes its cut at settlement. */
+    /** The rate charged on each purchase; zero on an event that takes its cut at settlement. */
     static double purchaseCommissionRate(Event event) {
         return event.getCommissionMethod() == CommissionMethod.PER_PURCHASE ? event.getCommissionRate() : 0.0;
     }
@@ -300,9 +312,6 @@ public class OrderExecutor {
             return;
         }
         event.getMMAccount().addCommission(commission);
-        User marketMaker = state.getMarketMaker(event.getId());
-        if (marketMaker != null) {
-            marketMaker.deposit(commission);
-        }
+        state.requireMarketMaker(event.getId()).deposit(commission);
     }
 }

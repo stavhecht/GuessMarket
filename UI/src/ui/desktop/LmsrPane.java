@@ -19,7 +19,7 @@ import javafx.scene.layout.VBox;
  * The body of an LMSR event: one card per outcome, showing what the scoring rule quotes,
  * what the next purchase would cost, and a field to make it.
  *
- * <p>There is no selling here and no order to place — the price is a function of how many
+ * <p>There is no selling here and no order to place: the price is a function of how many
  * shares exist and the market maker is always the counterparty, so a card is a price, a
  * quantity and a Buy button.
  *
@@ -88,7 +88,7 @@ class LmsrPane extends HBox {
             // The meter is the price itself: the two options of an event sum to 1, so the
             // filled part is literally how likely this outcome is being called. It follows
             // the ticker rather than the engine's figure, so the bar and the digits above it
-            // move together — bound once here, because the property never changes.
+            // move together, bound once here, because the property never changes.
             fill.prefWidthProperty().bind(meter.widthProperty().multiply(priceTicker.value()));
 
             VBox figures = new VBox(6,
@@ -106,6 +106,8 @@ class LmsrPane extends HBox {
             quantity.setMinWidth(72);
             quantity.textProperty().addListener((observable, was, now) -> requote());
 
+            // Same as the ladder's pair: the label is the whole button, so it does not shrink.
+            buy.setMinWidth(Region.USE_PREF_SIZE);
             buy.setOnAction(action -> buy());
 
             HBox foot = Widgets.row(8, quantity, Widgets.grower(), buy);
@@ -117,7 +119,7 @@ class LmsrPane extends HBox {
         void show(EventStatusView status, OptionView option, boolean open) {
             name.setText(option.name());
             // Pointed at this event's price, so the ticker rolls when the event reprices
-            // and lands flat when the card is re-used for a different event — the property
+            // and lands flat when the card is re-used for a different event, because the property
             // it is following is the one that changes, so nothing here has to say which.
             priceTicker.follow(app.live().price(status.eventId(), optionIndex));
             outstanding.setText(Widgets.shares(option.totalShares()));

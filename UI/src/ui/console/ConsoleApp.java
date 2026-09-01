@@ -11,7 +11,7 @@ import java.util.List;
  * The menu loop and command dispatch.
  *
  * <p>Every handler catches {@link EngineException} in one place and prints the
- * message — a rejected command returns to the menu, it never ends the session.
+ * message; a rejected command returns to the menu, it never ends the session.
  *
  * <p>This class also owns the 1-based ↔ 0-based conversion: the user picks
  * "option 1", the engine receives index 0. Indices stay 0-based everywhere inside.
@@ -48,7 +48,7 @@ public class ConsoleApp {
 
     private void dispatch(int choice) {
         // Every command except the two that bring events in (1 loads an XML file,
-        // 9 loads a saved session) needs events, so the check happens once here —
+        // 9 loads a saved session) needs events, so the check happens once here,
         // and before any handler prompts for anything.
         if (choice != LOAD_FILE_CHOICE && choice != LOAD_SESSION_CHOICE && !engine.isFileLoaded()) {
             out.printError("No events file is loaded yet! Choose 1 to load one first.");
@@ -148,7 +148,7 @@ public class ConsoleApp {
      *
      * <p>Failing here rather than at the engine call spares the user from typing an
      * option and a share count that are certain to be rejected. The engine repeats both
-     * checks — it can't trust a caller to have made them.
+     * checks; it can't trust a caller to have made them.
      */
     private EventStatusView readActiveEvent() {
         int eventId = in.readInt("Event id: ");

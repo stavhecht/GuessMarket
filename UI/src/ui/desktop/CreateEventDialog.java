@@ -23,7 +23,7 @@ import java.util.function.Function;
  *
  * <p>The dialog hands back a <em>command</em> rather than a filled-in object, and that is
  * deliberate: nothing here decides whether an event is legal. It reads what was typed, turns
- * the numbers into numbers, and calls the engine, which owns every rule — the same rules
+ * the numbers into numbers, and calls the engine, which owns every rule, the same rules
  * {@code XmlEventLoader} holds a file to. So a bad commission or two options with the same
  * name are refused in one place, and the reason lands in the status bar through
  * {@code DesktopApp.perform} like any other rejected command.
@@ -81,9 +81,10 @@ class CreateEventDialog extends Dialog<Function<MarketEngine, String>> {
                         "Larger b, flatter prices: a purchase moves them less."));
         bookFields = fieldBlock(
                 field("initial investment", initialInvestment,
-                        "Paid by " + creator + ", and returned as the opening shares."),
+                        "Paid by " + creator + ", and returned as shares "
+                                + creator + " holds until they choose to sell."),
                 field("base value d", baseValue,
-                        "What one winning share pays. The book opens at half of it a side."),
+                        "What one winning share pays. A pair of them costs it, so each opens at half."),
                 Widgets.row(8, Widgets.gap(0), allowMint));
         allowMint.setSelected(true);
 
@@ -149,7 +150,7 @@ class CreateEventDialog extends Dialog<Function<MarketEngine, String>> {
                         DesktopApp.readWholeNumber(baseValue.getText(), "base value", 1),
                         allowMint.isSelected());
 
-        return String.format("Created event %d, '%s' — you are its market maker.",
+        return String.format("Created event %d, '%s'. You are its market maker.",
                 made.id(), made.name());
     }
 
@@ -180,7 +181,7 @@ class CreateEventDialog extends Dialog<Function<MarketEngine, String>> {
      * Two toggles that behave as one choice.
      *
      * <p>A {@code ToggleGroup} lets its selected button be clicked off again, which would
-     * leave the form with no answer to a question that has to have one — so a deselection is
+     * leave the form with no answer to a question that has to have one, so a deselection is
      * put straight back, the same way the trade form on the Users screen does it.
      */
     private static void pair(ToggleButton first, ToggleButton second, ToggleGroup group,

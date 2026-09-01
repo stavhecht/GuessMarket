@@ -5,7 +5,7 @@ import jakarta.xml.bind.annotation.XmlAccessorType;
 import jakarta.xml.bind.annotation.XmlElement;
 
 /**
- * The {@code <GM-method>} element — which market maker prices this event.
+ * The {@code <GM-method>} element: which market maker prices this event.
  *
  * <p>The schema makes it an {@code xs:choice} of {@code <GM-LMSR>} and
  * {@code <GM-order-book>}, so exactly one of the two fields below is filled in. It is

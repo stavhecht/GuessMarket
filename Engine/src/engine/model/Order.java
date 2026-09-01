@@ -4,7 +4,7 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * One order resting in — or passing through — an {@link OrderBook}: somebody's offer to
+ * One order resting in, or passing through, an {@link OrderBook}: somebody's offer to
  * buy or sell a quantity of one option at a price.
  *
  * <p>A class rather than a record because {@link #getRemaining()} shrinks as the order

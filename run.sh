@@ -4,7 +4,7 @@
 # alone, so a relative path typed into the app resolves against wherever you are.
 #
 # JavaFX is not part of the JDK and cannot travel in the manifest, so the desktop UI needs
-# the SDK named on the module path — javafx.fxml as well as javafx.controls, because the
+# the SDK named on the module path: javafx.fxml as well as javafx.controls, because the
 # window's layout is read from DesktopApp.fxml. Point JAVAFX_HOME at yours if it lives
 # elsewhere.
 JAVAFX_HOME="${JAVAFX_HOME:-$HOME/Documents/javafx-sdk-25.0.4}"

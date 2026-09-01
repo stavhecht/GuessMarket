@@ -11,13 +11,13 @@ import java.util.List;
  * has traded in it.
  *
  * <p>Each option is traded on its own: YES at 0.70 and NO at 0.90 is a perfectly possible
- * state of this book. What ties the two together is the base value {@code d} — a pair of
+ * state of this book. What ties the two together is the base value {@code d}: a pair of
  * shares, one of each option, is always worth exactly {@code d} at settlement, which is
  * what makes minting possible and what the event's account is funded to pay.
  *
  * <p>This class is bookkeeping only: it holds orders in the right order, stamps sequence
  * numbers, remembers trades and answers questions about the state of the market. It never
- * moves money — {@code engine.service.OrderExecutor} does that, because a fill touches two
+ * moves money; {@code engine.service.OrderExecutor} does that, because a fill touches two
  * users' accounts and the event's, none of which live here.
  *
  * <p>Ordering is price first, then arrival: bids best (highest) first, asks best (lowest)
@@ -88,7 +88,7 @@ public class OrderBook implements Serializable {
         asks.get(optionIndex).removeIf(Order::isExhausted);
     }
 
-    /** Everything still waiting, across both options and both sides — settlement clears the lot. */
+    /** Everything still waiting, across both options and both sides; settlement clears the lot. */
     public List<Order> restingOrders() {
         List<Order> all = new ArrayList<>();
         for (int i = 0; i < Event.OPTION_COUNT; i++) {
@@ -122,13 +122,13 @@ public class OrderBook implements Serializable {
         return lastTradePrice[optionIndex];
     }
 
-    /** The most anyone is currently willing to pay — what a seller would get. */
+    /** The most anyone is currently willing to pay, which is what a seller would get. */
     public Double getBestBid(int optionIndex) {
         List<Order> queue = bids.get(optionIndex);
         return queue.isEmpty() ? null : queue.get(0).getPrice();
     }
 
-    /** The least anyone is currently willing to accept — what a buyer would pay. */
+    /** The least anyone is currently willing to accept, which is what a buyer would pay. */
     public Double getBestAsk(int optionIndex) {
         List<Order> queue = asks.get(optionIndex);
         return queue.isEmpty() ? null : queue.get(0).getPrice();
@@ -137,7 +137,7 @@ public class OrderBook implements Serializable {
     /**
      * Halfway between the best bid and the best ask: the closest thing to "what a share is
      * worth right now" once the last trade has gone stale. {@code null} unless both sides
-     * are represented — an average of one number is not a market.
+     * are represented: an average of one number is not a market.
      */
     public Double getMidPrice(int optionIndex) {
         Double bid = getBestBid(optionIndex);
@@ -188,7 +188,7 @@ public class OrderBook implements Serializable {
 
     /**
      * Whether {@code candidate} deserves to go ahead of {@code resting}: a better price
-     * only. An equal price does not — the one already waiting was there first.
+     * only. An equal price does not: the one already waiting was there first.
      */
     private static boolean beats(Order candidate, Order resting) {
         return candidate.getSide() == OrderSide.BUY

@@ -1,23 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <!--
-  The desktop app's layout, as Scene Builder can open it — and as the app itself loads it.
+  The desktop app's layout, as Scene Builder can open it, and as the app itself loads it.
 
   DesktopApp.start reads this file through an FXMLLoader and uses the tree it gets back as
   the scene root, so the window's SHELL is this file and not Java: the file bar, the tab
   pane and the status line below are the real ones. Every fx:id in those three sections is
-  the name of an @FXML field in DesktopApp, and the loader fills them in — which is also why
+  the name of an @FXML field in DesktopApp, and the loader fills them in, which is also why
   a rename here has to be matched there by hand. The compiler cannot see into this file, so
   a mismatch shows up as a null at start-up, not as a build error.
 
   The two tabs' BODIES are a different matter. Most of a screen is generated from the loaded
-  market rather than fixed — table rows, the two option cards, the ladder, the chart — so
+  market rather than fixed (table rows, the two option cards, the ladder, the chart) so
   EventsScreen and UsersScreen still build themselves in Java, and start() drops each one
   into its tab with setContent. Everything written out inside the two <Tab> elements below
   is therefore a STAND-IN: it is what Scene Builder shows, so the panels can be laid out and
   measured visually, and it is discarded the moment the app replaces it. The fx:ids in those
-  sections name fields in EventsScreen / UsersScreen — the class is given in the comment
-  above each block — and are documentation only; nothing injects them.
+  sections name fields in EventsScreen / UsersScreen, the class being given in the comment
+  above each block, and are documentation only; nothing injects them.
 
   Three things Scene Builder cannot show, and their stand-ins here:
 
@@ -30,7 +30,7 @@
       real, the rows are not.
 
   The stylesheet is the real one the app uses, so the preview is the actual design.
-  Switch the look by changing the root's styleClass to theme-dark or theme-neon — though at
+  Switch the look by changing the root's styleClass to theme-dark or theme-neon, though at
   runtime Theme.applyTo overwrites that class with whichever theme the toggle is showing.
 -->
 
@@ -61,7 +61,7 @@
             prefWidth="1440" prefHeight="940" minWidth="1180" minHeight="760"
             styleClass="theme-light" stylesheets="@guessmarket.css">
 
-    <!-- ====================== DesktopApp.wireFileBar() — REAL ======================= -->
+    <!-- ====================== DesktopApp.wireFileBar(): REAL ======================= -->
     <top>
         <HBox spacing="10" alignment="CENTER_LEFT" styleClass="toolstrip">
             <children>
@@ -72,7 +72,7 @@
                       minHeight="30" prefHeight="30" minWidth="0" HBox.hgrow="ALWAYS">
                     <padding><Insets top="0" right="10" bottom="0" left="10"/></padding>
                     <children>
-                        <!-- loadedMark: filled from Java, not styled — DesktopApp.repaintShapes -->
+                        <!-- loadedMark: filled from Java, not styled: DesktopApp.repaintShapes -->
                         <Circle fx:id="loadedMark" radius="8" visible="false" managed="false"/>
                         <Label fx:id="fileState" text="NO FILE LOADED" styleClass="h-tiny"/>
                         <Label fx:id="filePath" text="" styleClass="mono, faint"
@@ -189,7 +189,7 @@
                                                             <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
                                                             <children>
                                                                 <Label text="SELECTED EVENT" styleClass="h-tiny"/>
-                                                                <Label fx:id="previewName" text="—" styleClass="h-section"/>
+                                                                <Label fx:id="previewName" text="–" styleClass="h-section"/>
                                                                 <Label fx:id="previewDescription" text="" styleClass="muted"
                                                                        wrapText="true" minHeight="32"/>
                                                                 <HBox spacing="18" alignment="TOP_LEFT">
@@ -197,25 +197,25 @@
                                                                         <VBox spacing="3" minWidth="0">
                                                                             <children>
                                                                                 <Label text="OWNER" styleClass="h-tiny"/>
-                                                                                <Label fx:id="previewOwner" text="—" styleClass="num"/>
+                                                                                <Label fx:id="previewOwner" text="–" styleClass="num"/>
                                                                             </children>
                                                                         </VBox>
                                                                         <VBox spacing="3" minWidth="0">
                                                                             <children>
                                                                                 <Label text="OPTIONS" styleClass="h-tiny"/>
-                                                                                <Label fx:id="previewOptions" text="—" styleClass="muted"/>
+                                                                                <Label fx:id="previewOptions" text="–" styleClass="muted"/>
                                                                             </children>
                                                                         </VBox>
                                                                         <VBox spacing="3" minWidth="0">
                                                                             <children>
                                                                                 <Label text="COMMISSION" styleClass="h-tiny"/>
-                                                                                <Label fx:id="previewCommission" text="—" styleClass="muted"/>
+                                                                                <Label fx:id="previewCommission" text="–" styleClass="muted"/>
                                                                             </children>
                                                                         </VBox>
                                                                         <VBox spacing="3" minWidth="0">
                                                                             <children>
                                                                                 <Label text="PARTICIPANTS" styleClass="h-tiny"/>
-                                                                                <Label fx:id="previewParticipants" text="—" styleClass="num"/>
+                                                                                <Label fx:id="previewParticipants" text="–" styleClass="num"/>
                                                                             </children>
                                                                         </VBox>
                                                                     </children>
@@ -384,10 +384,10 @@
                                                                         <HBox spacing="8" alignment="CENTER_LEFT" styleClass="footer-strip">
                                                                             <children>
                                                                                 <Label text="MM BALANCE" styleClass="h-tiny"/>
-                                                                                <Label fx:id="accountBalance" text="—" styleClass="num"/>
+                                                                                <Label fx:id="accountBalance" text="–" styleClass="num"/>
                                                                                 <Region minWidth="10" prefWidth="10"/>
                                                                                 <Label text="COMMISSION" styleClass="h-tiny"/>
-                                                                                <Label fx:id="commissionCollected" text="—" styleClass="num"/>
+                                                                                <Label fx:id="commissionCollected" text="–" styleClass="num"/>
                                                                                 <Region HBox.hgrow="ALWAYS"/>
                                                                                 <Label fx:id="methodNote" text="b = 100" styleClass="note"/>
                                                                             </children>
@@ -439,7 +439,7 @@
                                                             <children>
                                                                 <Label text="TOTAL HELD" styleClass="h-tiny"/>
                                                                 <Region HBox.hgrow="ALWAYS"/>
-                                                                <Label fx:id="totalHeld" text="—" styleClass="num"/>
+                                                                <Label fx:id="totalHeld" text="–" styleClass="num"/>
                                                             </children>
                                                         </HBox>
                                                     </children>
@@ -464,7 +464,7 @@
                                                                             <children>
                                                                                 <HBox spacing="8" alignment="BASELINE_LEFT">
                                                                                     <children>
-                                                                                        <Label fx:id="name" text="—" styleClass="h-panel"/>
+                                                                                        <Label fx:id="name" text="–" styleClass="h-panel"/>
                                                                                         <Label fx:id="ownerOf" text="Owner of 1" styleClass="pill, mark"/>
                                                                                     </children>
                                                                                 </HBox>
@@ -474,7 +474,7 @@
                                                                         <VBox spacing="6" styleClass="card" minWidth="170">
                                                                             <children>
                                                                                 <Label text="ACCOUNT BALANCE" styleClass="h-tiny"/>
-                                                                                <Label fx:id="balance" text="—" styleClass="num-big"/>
+                                                                                <Label fx:id="balance" text="–" styleClass="num-big"/>
                                                                             </children>
                                                                         </VBox>
                                                                         <VBox spacing="6" styleClass="card" minWidth="210">
@@ -482,7 +482,7 @@
                                                                                 <Label text="POTENTIAL OUTCOME" styleClass="h-tiny"/>
                                                                                 <HBox spacing="8" alignment="CENTER_LEFT">
                                                                                     <children>
-                                                                                        <Label fx:id="potential" text="—" styleClass="num-big"/>
+                                                                                        <Label fx:id="potential" text="–" styleClass="num-big"/>
                                                                                         <Label fx:id="potentialDelta" text="" styleClass="mono"/>
                                                                                     </children>
                                                                                 </HBox>
@@ -522,7 +522,7 @@
                                                             <children>
                                                                 <HBox spacing="8" alignment="CENTER_LEFT" styleClass="panel-head">
                                                                     <children>
-                                                                        <Label text="EVENTS — PARTICIPATION &amp; OWNERSHIP"
+                                                                        <Label text="EVENTS: PARTICIPATION &amp; OWNERSHIP"
                                                                                styleClass="h-caps"/>
                                                                         <Region HBox.hgrow="ALWAYS"/>
                                                                         <HBox spacing="6" alignment="CENTER_LEFT">
@@ -655,19 +655,19 @@
                                                                                         <VBox spacing="3" minWidth="0">
                                                                                             <children>
                                                                                                 <Label text="COMMISSION" styleClass="h-tiny"/>
-                                                                                                <Label fx:id="tradeCommission" text="—" styleClass="kv-val"/>
+                                                                                                <Label fx:id="tradeCommission" text="–" styleClass="kv-val"/>
                                                                                             </children>
                                                                                         </VBox>
                                                                                         <VBox spacing="3" minWidth="0">
                                                                                             <children>
                                                                                                 <Label text="MARKET METHOD" styleClass="h-tiny"/>
-                                                                                                <Label fx:id="tradeMethod" text="—" styleClass="kv-val"/>
+                                                                                                <Label fx:id="tradeMethod" text="–" styleClass="kv-val"/>
                                                                                             </children>
                                                                                         </VBox>
                                                                                         <VBox spacing="3" minWidth="0">
                                                                                             <children>
                                                                                                 <Label text="EVENT ACCOUNT" styleClass="h-tiny"/>
-                                                                                                <Label fx:id="tradeAccount" text="—" styleClass="kv-val"/>
+                                                                                                <Label fx:id="tradeAccount" text="–" styleClass="kv-val"/>
                                                                                             </children>
                                                                                         </VBox>
                                                                                     </children>
@@ -709,28 +709,28 @@
                                                                                             <children>
                                                                                                 <Label text="Shares cost" styleClass="kv-key"/>
                                                                                                 <Region HBox.hgrow="ALWAYS"/>
-                                                                                                <Label fx:id="sharesCost" text="—" styleClass="kv-val"/>
+                                                                                                <Label fx:id="sharesCost" text="–" styleClass="kv-val"/>
                                                                                             </children>
                                                                                         </HBox>
                                                                                         <HBox spacing="8" alignment="CENTER_LEFT">
                                                                                             <children>
                                                                                                 <Label text="Commission" styleClass="kv-key"/>
                                                                                                 <Region HBox.hgrow="ALWAYS"/>
-                                                                                                <Label fx:id="commission" text="—" styleClass="kv-val"/>
+                                                                                                <Label fx:id="commission" text="–" styleClass="kv-val"/>
                                                                                             </children>
                                                                                         </HBox>
                                                                                         <HBox spacing="8" alignment="CENTER_LEFT">
                                                                                             <children>
                                                                                                 <Label text="Total" styleClass="kv-key"/>
                                                                                                 <Region HBox.hgrow="ALWAYS"/>
-                                                                                                <Label fx:id="totalCost" text="—" styleClass="kv-val"/>
+                                                                                                <Label fx:id="totalCost" text="–" styleClass="kv-val"/>
                                                                                             </children>
                                                                                         </HBox>
                                                                                         <HBox spacing="8" alignment="CENTER_LEFT">
                                                                                             <children>
                                                                                                 <Label text="Balance after" styleClass="kv-key"/>
                                                                                                 <Region HBox.hgrow="ALWAYS"/>
-                                                                                                <Label fx:id="balanceAfter" text="—" styleClass="kv-val"/>
+                                                                                                <Label fx:id="balanceAfter" text="–" styleClass="kv-val"/>
                                                                                             </children>
                                                                                         </HBox>
                                                                                     </children>
@@ -758,11 +758,11 @@
     </center>
 
     <!--
-      The status line, plus who commands are being issued as — REAL, injected into
+      The status line, plus who commands are being issued as: REAL, injected into
       DesktopApp.status / DesktopApp.actingAs.
 
       The design puts the choice of user on the Users screen and nowhere else, which leaves
-      the Events screen able to buy without saying on whose behalf — so the answer sits
+      the Events screen able to buy without saying on whose behalf, so the answer sits
       here, visible from both.
     -->
     <bottom>

@@ -16,7 +16,7 @@ import java.util.function.DoubleFunction;
  * produced each point, with the latest point marked.
  *
  * <p>Drawn on a {@link Canvas} rather than assembled from a JavaFX {@code LineChart},
- * because what the design asks for is a handful of hairlines and two polylines — a
+ * because what the design asks for is a handful of hairlines and two polylines. A
  * {@code LineChart} would have to have most of its furniture styled away first, and its
  * axes insist on tick marks and padding this design does not have.
  *
@@ -53,7 +53,7 @@ class SparkChart extends Pane {
     /**
      * Replaces what is plotted.
      *
-     * @param yLabel how a value on the vertical axis reads — prices to two places, money
+     * @param yLabel how a value on the vertical axis reads: prices to two places, money
      *               grouped, whatever the panel above is measured in
      * @param xLabels one per point, of which only a few are drawn; empty for none
      */

@@ -10,7 +10,7 @@ import java.util.List;
  * and cross-referenced by {@link XmlEventLoader}.
  *
  * <p>It exists because a file now says two things rather than one, and the two are only
- * valid together — a user is Market Maker for an event id, which has to be an event in
+ * valid together: a user is Market Maker for an event id, which has to be an event in
  * the same list. Returning them as a pair keeps that check inside the loader, where the
  * file is still the subject.
  *

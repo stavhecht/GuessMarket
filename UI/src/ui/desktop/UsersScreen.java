@@ -44,8 +44,8 @@ import java.util.Map;
 /**
  * Screen two: every user on the left, one user's account on the right.
  *
- * <p>The account is the whole point of the screen — what they hold, what it is worth now,
- * and what it pays if the sides they are on come in — so the panels descend in that order:
+ * <p>The account is the whole point of the screen (what they hold, what it is worth now,
+ * and what it pays if the sides they are on come in) so the panels descend in that order:
  * the balance, then every position behind it, then the one event a position points at,
  * with a form for adding to it.
  *
@@ -78,8 +78,8 @@ class UsersScreen extends HBox {
     /**
      * The three figures of the account header count to their new values rather than
      * replacing themselves, so a purchase is seen to move the money. Each follows a property
-     * belonging to one user, so switching accounts re-points it and lands rather than rolling
-     * — a different person's balance is not this one's next value.
+     * belonging to one user, so switching accounts re-points it and lands rather than rolling,
+     * because a different person's balance is not this one's next value.
      */
     private final Ticker balanceTicker = Ticker.money(balance);
     private final Ticker potentialTicker = Ticker.money(potential);
@@ -142,7 +142,7 @@ class UsersScreen extends HBox {
     private final Button buy = Widgets.button("Buy", "primary");
 
     /**
-     * The figures this screen owns rather than the engine, each backing a bound label —
+     * The figures this screen owns rather than the engine, each backing a bound label,
      * the same arrangement as {@code EventsScreen}, and for the same reason: a refresh that
      * moved nothing must not rewrite anything.
      */
@@ -166,7 +166,7 @@ class UsersScreen extends HBox {
         balanceMoves.textProperty().bind(balanceMovesText);
 
         VBox left = buildUserList();
-        // The account is four stacked panels and does not shrink gracefully — below a tall
+        // The account is four stacked panels and does not shrink gracefully, so below a tall
         // window the column scrolls rather than crushing the tables inside it.
         ScrollPane right = new ScrollPane(buildAccount());
         right.setFitToWidth(true);
@@ -261,10 +261,10 @@ class UsersScreen extends HBox {
                 position -> Widgets.money(position.value())));
         positions.getColumns().add(Widgets.numCol("If wins", 84,
                 position -> position.ifWins() == null ? Widgets.NONE : Widgets.money(position.ifWins())));
-        positions.getColumns().add(Widgets.styledCol("P/L", 84,
+        positions.getColumns().add(Widgets.overFigures(Widgets.styledCol("P/L", 84,
                 position -> position.profit() == null ? Widgets.NONE : Widgets.signed(position.profit()),
                 position -> position == null || position.profit() == null
-                        ? "numeric" : "numeric " + Widgets.moveClass(position.profit())));
+                        ? "numeric" : "numeric " + Widgets.moveClass(position.profit()))));
         positions.getColumns().add(Widgets.nodeCol("Status", 72,
                 position -> Widgets.statusPill(position.status())));
         positions.getSelectionModel().selectedItemProperty().addListener(
@@ -275,7 +275,7 @@ class UsersScreen extends HBox {
         VBox body = new VBox(positions);
         VBox.setVgrow(positions, Priority.ALWAYS);
         return Widgets.panel(
-                Widgets.panelHead("Events — participation & ownership", null,
+                Widgets.panelHead("Events: participation & ownership", null,
                         Widgets.filter("role", roleFilter, 118)),
                 body);
     }
@@ -465,7 +465,7 @@ class UsersScreen extends HBox {
      * <p>Most of the money on this screen is moved from the other one: a purchase made on
      * the Events tab changes the balance here, and the roll that follows it would play out
      * behind a tab nobody is looking at. Gated on the tab's own selection, it waits and runs
-     * when the tab is opened — which is the only moment there is anyone to see it. Called by
+     * when the tab is opened, which is the only moment there is anyone to see it. Called by
      * {@code DesktopApp.start} once the layout has handed it the tab.
      */
     void animateOnlyWhile(ObservableBooleanValue inView) {
@@ -496,9 +496,11 @@ class UsersScreen extends HBox {
      * Draws the balance timeline of whoever the chart is bound to.
      *
      * <p>Unlike the price chart, this history is the UI's own: the engine stores a current
-     * balance and no ledger, so the line starts when the window opened rather than when the
-     * account did. A session restored from a {@code .gm} file arrives with one point — the
-     * balance it was saved at — because the moves behind it were never recorded anywhere.
+     * balance and no ledger. What it does store is the cash the file gave the account, so the
+     * line starts there, the first tick being {@code start}, and steps once per move after it.
+     * A session restored from a {@code .gm} file therefore arrives with two points, its
+     * initial cash and the balance it was saved at, since the moves between them were never
+     * recorded anywhere.
      */
     private void redrawBalance() {
         if (charted == null) {
@@ -554,7 +556,7 @@ class UsersScreen extends HBox {
      * now against the pale part it would be worth if that side wins.
      *
      * <p>The design puts a balance-over-time chart here. The engine keeps no per-user
-     * ledger — balances are current, and an LMSR trade does not record who made it — so
+     * ledger (balances are current, and an LMSR trade does not record who made it) so
      * there is no timeline to draw, and this answers the same question from what is known.
      */
     private void drawBars(List<MarketData.Position> visible) {
@@ -602,7 +604,10 @@ class UsersScreen extends HBox {
         EventView event = eventById(eventId);
         boolean open = event != null && MarketData.isActive(event) && selectedUser != null;
 
-        closeEvent.setDisable(event == null || !MarketData.isActive(event));
+        // Shown to the one user who can act on it: the event's Market Maker.
+        boolean closable = MarketData.canClose(app.engine(), event);
+        closeEvent.setVisible(closable);
+        closeEvent.setManaged(closable);
         for (ToggleButton button : optionButtons) {
             button.setDisable(!open);
         }
@@ -628,7 +633,7 @@ class UsersScreen extends HBox {
             return;
         }
 
-        tradeTitle.setText(event.name() + " — details & trade");
+        tradeTitle.setText(event.name() + " · details & trade");
         tradeStatus.setVisible(true);
         tradeStatus.setText(MarketData.isActive(event) ? "Active" : "Closed");
         tradeStatus.getStyleClass().removeAll("ok", "off");
@@ -676,7 +681,7 @@ class UsersScreen extends HBox {
         reprice();
     }
 
-    /** Prices what is in the form, quietly — a half-typed number is not an error yet. */
+    /** Prices what is in the form, quietly: a half-typed number is not an error yet. */
     private void reprice() {
         EventView event = eventById(tradeEventId);
         long shares = parseLong(quantity.getText());

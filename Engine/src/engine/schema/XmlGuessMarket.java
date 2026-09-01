@@ -33,7 +33,7 @@ public class XmlGuessMarket {
     /**
      * {@code @XmlElementWrapper} names the {@code <GM-events>} container and
      * {@code @XmlElement} names each child inside it, so the wrapper element does not
-     * need a class of its own — the root simply holds the events.
+     * need a class of its own: the root simply holds the events.
      */
     @XmlElementWrapper(name = "GM-events", required = true)
     @XmlElement(name = "GM-event")

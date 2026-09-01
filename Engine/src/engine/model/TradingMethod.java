@@ -6,7 +6,7 @@ import java.io.Serializable;
  * How an event is traded: the market maker that prices it, and its settings.
  *
  * <p>Sealed with one record per method, so the settings of each live together and can
- * only be read after saying which method they belong to — a {@code b} can't be taken
+ * only be read after saying which method they belong to: a {@code b} can't be taken
  * from an order-book event, and the compiler checks that a {@code switch} over the two
  * handles both.
  *
@@ -34,15 +34,15 @@ public sealed interface TradingMethod extends Serializable {
     record OrderBook(boolean allowMint, int initialInvestment, int d) implements TradingMethod {
 
         /**
-         * Where the market opens: the price the Market Maker's initial allocation is offered
-         * at, on both options.
+         * Where the market opens: what the Market Maker's initial allocation cost them a
+         * share, on both options, since a pair costs the whole base value, so each side of it is
+         * worth half.
          *
-         * <p>Half the base value on each side is the only split that says nothing about which
-         * outcome is likelier, which is exactly what is known before anyone has traded — the
-         * same thing an LMSR event's 0.5 says. Written down once here because two places need
-         * it: {@code EventManager.applyInitialAllocations} places the opening orders at it,
-         * and {@code MarketEngine} reports it so a price chart can start there rather than at
-         * the first transaction.
+         * <p>Half the base value on each side is also the only split that says nothing about
+         * which outcome is likelier, which is exactly what is known before anyone has traded,
+         * the same thing an LMSR event's 0.5 says. Nothing is <em>quoted</em> at it: the
+         * allocation is the maker's to sell when they choose. {@code MarketEngine} reports it
+         * so a price chart can start there rather than at the first transaction.
          */
         public double openingPrice() {
             return d / 2.0;

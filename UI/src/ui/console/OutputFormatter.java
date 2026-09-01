@@ -14,7 +14,7 @@ import java.util.List;
 /**
  * The only class in the application that writes to the console.
  *
- * <p>This is also the only place values get rounded — the engine carries full
+ * <p>This is also the only place values get rounded: the engine carries full
  * precision end to end, and {@code %.2f} is applied here at the moment of printing.
  */
 public class OutputFormatter {
@@ -114,7 +114,7 @@ public class OutputFormatter {
         System.out.printf("  Commission collected: " + PRICE + "%n", status.commissionCollected());
 
         if (status.closed()) {
-            System.out.println("  Status: CLOSED — winner: " + status.winningOptionName());
+            System.out.println("  Status: CLOSED, winner: " + status.winningOptionName());
             long[] finalShares = status.finalSharesPerOption();
             if (finalShares != null) {
                 for (int i = 0; i < finalShares.length; i++) {
@@ -164,6 +164,10 @@ public class OutputFormatter {
             System.out.printf("  Commission taken:  " + PRICE + "%n", result.commissionMoved());
         }
         System.out.printf("  Paid to winners:   " + PRICE + "%n", result.totalPaidToWinners());
+        if (result.subsidyReturned() > 0) {
+            // The unspent subsidy going home, so the account visibly ends at nothing.
+            System.out.printf("  Returned to maker: " + PRICE + "%n", result.subsidyReturned());
+        }
     }
 
     public void printError(String message) {

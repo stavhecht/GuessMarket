@@ -4,7 +4,7 @@ import jakarta.xml.bind.annotation.XmlAccessType;
 import jakarta.xml.bind.annotation.XmlAccessorType;
 import jakarta.xml.bind.annotation.XmlElement;
 
-/** The {@code <GM-LMSR>} settings — just the liquidity parameter. */
+/** The {@code <GM-LMSR>} settings: just the liquidity parameter. */
 @XmlAccessorType(XmlAccessType.FIELD)
 public class XmlLmsr {
 

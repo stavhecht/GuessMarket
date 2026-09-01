@@ -28,8 +28,8 @@ import java.util.function.DoubleFunction;
  * Screen one: every event on the left, the selected one traded on the right.
  *
  * <p>The left panel is a filterable list with a preview of whatever is highlighted; the
- * right is that event's market — an LMSR pair of price cards or an order book's two
- * ladders, whichever the event uses — with the price history under it and the full
+ * right is that event's market (an LMSR pair of price cards or an order book's two
+ * ladders, whichever the event uses) with the price history under it and the full
  * participation log under that.
  *
  * <p>The filters are the screen's own and never reach the engine: {@code getEvents()}
@@ -85,7 +85,7 @@ class EventsScreen extends HBox {
      * The figures this screen owns, rather than the engine.
      *
      * <p>The label each one backs is <em>bound</em> to it in the constructor and never
-     * written directly, so a refresh that did not change a count leaves it alone — a property
+     * written directly, so a refresh that did not change a count leaves it alone: a property
      * set to the value it already holds fires nothing. The composite two are strings rather
      * than numbers because the design gives them a form ("3 of 5", "1 trade") and an empty
      * state that a count cannot express.
@@ -103,7 +103,7 @@ class EventsScreen extends HBox {
      * The chart's subscription to the selected event's two prices.
      *
      * <p>The chart redraws because a price moved, not because something happened to have
-     * called {@link #refresh()} — so it cannot be left behind by a screen that updates by
+     * called {@link #refresh()}, so it cannot be left behind by a screen that updates by
      * another route. The properties are the selected event's, so they are swapped over in
      * {@link #bindChartTo} whenever the selection changes.
      */
@@ -143,8 +143,7 @@ class EventsScreen extends HBox {
         events.getColumns().add(Widgets.idCol("id", 40, event -> String.format("%02d", event.id())));
         events.getColumns().add(Widgets.col("Event", 150, EventView::name));
         events.getColumns().add(Widgets.col("Method", 90, MarketData::methodLabel));
-        events.getColumns().add(Widgets.numCol("Commission", 90,
-                event -> Widgets.percent(event.commissionRate())));
+        events.getColumns().add(Widgets.col("Commission", 130, MarketData::commissionLabel));
         events.getColumns().add(Widgets.nodeCol("Status", 72,
                 event -> Widgets.statusPill(event.status())));
         events.getSelectionModel().selectedItemProperty()
@@ -239,7 +238,7 @@ class EventsScreen extends HBox {
         body.getStyleClass().add("panel-body");
 
         // An order-book ladder is a good deal taller than a pair of LMSR cards, and the
-        // three blocks below it must stay legible either way — so the panel scrolls rather
+        // three blocks below it must stay legible either way, so the panel scrolls rather
         // than squeezing whichever of them happens to be last.
         ScrollPane scroller = new ScrollPane(body);
         scroller.setFitToWidth(true);
@@ -272,35 +271,23 @@ class EventsScreen extends HBox {
     }
 
     private void applyFilters() {
-        List<EventView> visible = new ArrayList<>();
-        for (EventView event : all) {
-            if (matches(event)) {
-                visible.add(event);
-            }
-        }
+        List<EventView> visible = all.stream().filter(this::matches).toList();
         shownText.set(visible.size() + " of " + all.size());
 
         Integer wanted = selectedId;
         EventView before = events.getSelectionModel().getSelectedItem();
 
-        // Rewriting the rows drops the selection, which fires the listener with null and
-        // then again with the event — the whole right-hand panel drawn empty and redrawn,
-        // on every refresh, tab switch and filter. EventView is a record, so a market whose
-        // shape has not changed compares equal and the table is left alone.
         if (!events.getItems().equals(visible)) {
             events.getItems().setAll(visible);
         }
 
-        EventView reselect = null;
-        for (EventView event : visible) {
-            if (wanted != null && event.id() == wanted) {
-                reselect = event;
-            }
-        }
+        // Ids are unique, so the first match is the only one.
+        EventView reselect = wanted == null ? null
+                : visible.stream().filter(event -> event.id() == wanted).findFirst().orElse(null);
         if (reselect != null) {
             events.getSelectionModel().select(reselect);
         } else if (!visible.isEmpty()) {
-            // Nothing chosen yet, or the choice was filtered away — open on the first row
+            // Nothing chosen yet, or the choice was filtered away, so open on the first row
             // rather than on an empty panel.
             events.getSelectionModel().selectFirst();
         } else {
@@ -308,8 +295,8 @@ class EventsScreen extends HBox {
             return;
         }
 
-        // The figures behind an event move without the event itself changing — a trade
-        // reprices it but leaves its EventView equal — so when the table was left alone and
+        // The figures behind an event move without the event itself changing: a trade
+        // reprices it but leaves its EventView equal, so when the table was left alone and
         // the listener never fired, the panel is redrawn from here instead. Compared by
         // identity: a selection that really moved hands back a different object.
         EventView after = events.getSelectionModel().getSelectedItem();
@@ -340,7 +327,8 @@ class EventsScreen extends HBox {
         show(marketPlaceholder, event == null);
         show(lmsrPane, false);
         show(orderBookPane, false);
-        closeEvent.setDisable(event == null || !MarketData.isActive(event));
+        // Only the event's Market Maker can close it, so nobody else is shown the button.
+        show(closeEvent, MarketData.canClose(app.engine(), event));
 
         if (event == null) {
             title.setText("No event selected");
@@ -488,7 +476,7 @@ class EventsScreen extends HBox {
         node.setManaged(visible);
     }
 
-    /** {@code 100} rather than {@code 100.00} — b and d are whole numbers in every file. */
+    /** {@code 100} rather than {@code 100.00}; b and d are whole numbers in every file. */
     private static String trimmed(double value) {
         return value == Math.rint(value) ? String.valueOf((long) value) : Widgets.money(value);
     }

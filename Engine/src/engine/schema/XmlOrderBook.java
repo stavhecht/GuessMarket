@@ -5,7 +5,7 @@ import jakarta.xml.bind.annotation.XmlAccessorType;
 import jakarta.xml.bind.annotation.XmlAttribute;
 
 /**
- * The {@code <GM-order-book allow-mint="true" inital="100" d="1"/>} settings — the second
+ * The {@code <GM-order-book allow-mint="true" inital="100" d="1"/>} settings: the second
  * market method a file may name, alongside {@link XmlLmsr}.
  *
  * <p>{@code inital} is spelled the way the XSD spells it, exactly as {@code comision} is:
@@ -27,7 +27,7 @@ public class XmlOrderBook {
     @XmlAttribute(name = "inital", required = true)
     private int initialInvestment;
 
-    /** The event's base value. A primitive, so a missing {@code d} arrives as 0 — the loader rejects that. */
+    /** The event's base value. A primitive, so a missing {@code d} arrives as 0, which the loader rejects. */
     @XmlAttribute(name = "d", required = true)
     private int d;
 

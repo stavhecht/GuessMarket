@@ -36,7 +36,7 @@ import java.util.function.Supplier;
 
 /**
  * The desktop front end: an admin view onto one loaded market, in the shape the design
- * lays out — a title strip, a file bar, two tabs, and a status line.
+ * lays out: a title strip, a file bar, two tabs, and a status line.
  *
  * <p>The two tabs are the two screens: {@link EventsScreen} is every event and the market
  * of whichever one is selected, {@link UsersScreen} is every user and the account of
@@ -44,7 +44,7 @@ import java.util.function.Supplier;
  * {@link #refresh()}, so a trade made on one is visible on the other.
  *
  * <p>Like {@link ui.console.ConsoleApp}, this class never reaches past {@link MarketEngine}:
- * it reads DTOs and calls commands. It owns the same two conversions the console owns —
+ * it reads DTOs and calls commands. It owns the same two conversions the console owns:
  * the option numbers a person sees against the 0-based indices the engine uses, and the
  * moment at which a figure gets rounded for display.
  *
@@ -57,7 +57,7 @@ import java.util.function.Supplier;
  * {@link #start}: the file bar, the tab pane and the status line are built by
  * {@link FXMLLoader} and injected into the {@code @FXML} fields below, and this class then
  * only wires the behaviour onto them. What the loader cannot build is everything generated
- * from the loaded market — table rows, the option cards, the ladder, the chart — so the two
+ * from the loaded market (table rows, the option cards, the ladder, the chart) so the two
  * tabs' bodies are still {@link EventsScreen} and {@link UsersScreen}, constructed here and
  * dropped into the tabs the FXML declared. The layout file spells those bodies out anyway,
  * with one representative row of each kind, so that Scene Builder shows the real design
@@ -81,7 +81,7 @@ public class DesktopApp extends Application {
     private final List<Circle> tinted = new ArrayList<>();
 
     // Everything below is injected out of DesktopApp.fxml by name: the field name here is
-    // the fx:id there. Rename one and you must rename the other — the compiler cannot see
+    // the fx:id there. Rename one and you must rename the other: the compiler cannot see
     // into the layout file, so a mismatch is a null at start-up, not a build error.
     @FXML private Button loadFile;
     @FXML private Button saveSession;
@@ -158,7 +158,7 @@ public class DesktopApp extends Application {
 
         wireFileBar();
 
-        // The window's size is the layout file's — it sets the root's preferred size, and a
+        // The window's size is the layout file's: it sets the root's preferred size, and a
         // Scene with no dimensions of its own takes it.
         scene = new Scene(root);
         theme.applyTo(scene);
@@ -184,7 +184,7 @@ public class DesktopApp extends Application {
      * handed it the engine, so a second {@code DesktopApp} built reflectively out of the
      * {@code fx:controller} attribute would be wired to nothing. A controller factory that
      * ignores the class it is asked for and returns {@code this} is how the attribute stays
-     * in the file — Scene Builder reads it to offer the {@code fx:id}s — without a second
+     * in the file (Scene Builder reads it to offer the {@code fx:id}s) without a second
      * instance ever existing.
      *
      * <p>The file has to be on the classpath beside this class, the way
@@ -196,7 +196,7 @@ public class DesktopApp extends Application {
         URL layout = DesktopApp.class.getResource(LAYOUT);
         if (layout == null) {
             throw new IllegalStateException(LAYOUT + " is missing from the classpath, next to "
-                    + "DesktopApp.class — the window's layout is read from it at start-up.");
+                    + "DesktopApp.class, and the window's layout is read from it at start-up.");
         }
         FXMLLoader loader = new FXMLLoader(layout);
         loader.setControllerFactory(type -> this);
@@ -210,21 +210,27 @@ public class DesktopApp extends Application {
     /**
      * Puts the behaviour on the file strip the layout file drew: one primary action, one
      * read-only field saying what is loaded, and the two session commands. The field is the
-     * design's three states in one place — nothing loaded, loading, and a flash of green
-     * when a file has just come in — and the FXML leaves it in the first of them, with the
+     * design's three states in one place (nothing loaded, loading, and a flash of green
+     * when a file has just come in) and the FXML leaves it in the first of them, with the
      * bar and the percentage hidden and unmanaged.
      */
     private void wireFileBar() {
         loadFile.setOnAction(action -> chooseFile("Load events file", "XML files", "*.xml", false)
                 .ifPresent(this::loadInBackground));
 
+        // The theme rides along in the session file, so reopening it reopens the look.
         saveSession.setOnAction(action -> chooseFile("Save session", "GuessMarket sessions", "*.gm", true)
-                .ifPresent(file -> perform(() -> "Session saved to " + engine.saveState(file.getPath()) + ".")));
+                .ifPresent(file -> perform(() ->
+                        "Session saved to " + engine.saveState(file.getPath(), theme.name()) + ".")));
 
         loadSession.setOnAction(action -> chooseFile("Load session", "GuessMarket sessions", "*.gm", false)
                 .ifPresent(file -> perform(() -> {
                     loadedFile = engine.loadState(file.getPath());
                     live.reset();   // the balances behind a restored session are not this run's
+                    Theme saved = Theme.named(engine.getRestoredUiState());
+                    if (saved != null && saved != theme) {
+                        wearTheme(saved);
+                    }
                     return "Session loaded from " + loadedFile + ".";
                 })));
 
@@ -251,7 +257,7 @@ public class DesktopApp extends Application {
      * How long the bar takes to cross the strip when the file itself takes no time at all.
      *
      * <p>Reading one of these files is over in a few milliseconds, which on screen is a
-     * flicker and nothing else — so the two ramps below are stretched over this instead.
+     * flicker and nothing else, so the two ramps below are stretched over this instead.
      * A file that really does take longer is not padded past its own time: the bar simply
      * rests at {@link #HANDOVER} while the engine works, and finishes when it is done.
      */
@@ -262,7 +268,7 @@ public class DesktopApp extends Application {
 
     /**
      * Reads an events file off the FX thread, so a big one cannot freeze the window while
-     * JAXB works through it. Nothing on screen is redrawn until it has succeeded — the
+     * JAXB works through it. Nothing on screen is redrawn until it has succeeded: the
      * engine leaves the previous session untouched if the file is rejected, and so does
      * this.
      *
@@ -362,11 +368,19 @@ public class DesktopApp extends Application {
     }
 
     private void cycleTheme() {
-        theme = theme.next();
+        wearTheme(theme.next());
+    }
+
+    /**
+     * Dresses the window in one theme: the toggle's next look, or the one a restored
+     * session was saved wearing.
+     */
+    private void wearTheme(Theme wanted) {
+        theme = wanted;
         theme.applyTo(scene);
         themeToggle.setText(theme.label());
         repaintShapes();
-        // The few things drawn rather than styled — depth bars, the chart, the title dots —
+        // The few things drawn rather than styled (depth bars, the chart, the title dots)
         // read their colours off the theme when they are built, so they are rebuilt here.
         Platform.runLater(this::refresh);
     }
@@ -385,7 +399,7 @@ public class DesktopApp extends Application {
      * Runs one engine command and reports it.
      *
      * <p>Whatever happens the window is redrawn afterwards, because a command that failed
-     * halfway is exactly the case where the screen must not be trusted — though the engine
+     * halfway is exactly the case where the screen must not be trusted, though the engine
      * makes sure there is no such halfway.
      *
      * @param action performs the command and returns what to tell the user
@@ -413,7 +427,7 @@ public class DesktopApp extends Application {
     void createEvent() {
         String creator = engine.getCurrentUserName();
         if (creator == null) {
-            report("Select a user on the Users tab first — whoever creates an event runs it.", true);
+            report("Select a user on the Users tab first: whoever creates an event runs it.", true);
             return;
         }
         CreateEventDialog dialog = new CreateEventDialog(creator);
@@ -439,9 +453,13 @@ public class DesktopApp extends Application {
         int winningIndex = event.optionNames().indexOf(winner.get());   // the engine counts from 0
         perform(() -> {
             SettlementResult result = engine.closeEvent(event.id(), winningIndex);
-            return String.format("Event %d closed on %s: %s paid out, %s commission.",
+            String returned = result.subsidyReturned() > 0
+                    ? ", " + Widgets.money(result.subsidyReturned()) + " back to the market maker"
+                    : "";
+            return String.format("Event %d closed on %s: %s paid out, %s commission%s.",
                     result.eventId(), result.winningOptionName(),
-                    Widgets.money(result.totalPaidToWinners()), Widgets.money(result.commissionMoved()));
+                    Widgets.money(result.totalPaidToWinners()), Widgets.money(result.commissionMoved()),
+                    returned);
         });
     }
 
@@ -455,7 +473,7 @@ public class DesktopApp extends Application {
         filePath.setText(loadedFile == null ? "" : loadedFile);
         String user = engine.isFileLoaded() ? engine.getCurrentUserName() : null;
         actingAs.setText(!engine.isFileLoaded() ? ""
-                : user == null ? "Nobody selected — pick one on the Users tab"
+                : user == null ? "Nobody selected. Pick one on the Users tab"
                 : "Acting as " + user);
         if (!loading.isVisible() && !fileState.getStyleClass().contains("up")) {
             fileState.setText(engine.isFileLoaded() ? "LOADED" : "NO FILE LOADED");

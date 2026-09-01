@@ -23,8 +23,8 @@ public class Event implements Serializable {
      * The most an event may charge, as a percentage.
      *
      * <p>A domain rule rather than a file one, which is why it lives here: both ways an
-     * event can come into being — read from XML by {@code XmlEventLoader}, or created at
-     * runtime by {@code MarketEngine} — have to hold to the same ceiling, and a number
+     * event can come into being (read from XML by {@code XmlEventLoader}, or created at
+     * runtime by {@code MarketEngine}) have to hold to the same ceiling, and a number
      * written down twice is a number that drifts.
      */
     public static final int MAX_COMMISSION_PERCENT = 90;
@@ -108,7 +108,7 @@ public class Event implements Serializable {
     /**
      * This event's order book.
      *
-     * @throws IllegalStateException if this event is not an order-book market — check
+     * @throws IllegalStateException if this event is not an order-book market; check
      *                               {@link #isOrderBook()} first, for the reason
      *                               {@link #getB()} says
      */
@@ -122,7 +122,7 @@ public class Event implements Serializable {
     /**
      * The LMSR liquidity parameter.
      *
-     * @throws IllegalStateException if this event is not an LMSR market — check
+     * @throws IllegalStateException if this event is not an LMSR market; check
      *                               {@link #isLmsr()} first. A caller that gets this
      *                               wrong has a bug, not a bad file, so it is not an
      *                               {@code EngineException}.

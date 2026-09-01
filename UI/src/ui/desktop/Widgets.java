@@ -23,7 +23,7 @@ import javafx.util.Duration;
 import java.util.function.Function;
 
 /**
- * The pieces every screen of the desktop app is assembled from — the design's components,
+ * The pieces every screen of the desktop app is assembled from: the design's components,
  * one factory each, so a panel head or a status pill is built the same way everywhere.
  *
  * <p>This is also where {@code %.2f} is applied for the desktop UI, the same way
@@ -31,7 +31,7 @@ import java.util.function.Function;
  * carries full precision right up to the moment something is drawn. Figures are grouped
  * with thousands separators here because that is how the design shows them.
  *
- * <p>Small-caps labels are uppercased in Java rather than in CSS — JavaFX has no
+ * <p>Small-caps labels are uppercased in Java rather than in CSS, because JavaFX has no
  * {@code text-transform}, and the design uses it for every panel header and column key.
  */
 final class Widgets {
@@ -39,8 +39,8 @@ final class Widgets {
     /** What a price or a balance looks like on screen. */
     static final String MONEY = "%,.2f";
 
-    /** Shown where a figure has no value yet — an option nobody has quoted, say. */
-    static final String NONE = "—";
+    /** Shown where a figure has no value yet: an option nobody has quoted, say. */
+    static final String NONE = "–";
 
     /** Where {@link #followMoney} remembers what a label is already following. */
     private static final String FOLLOWING = "gm-following";
@@ -107,7 +107,7 @@ final class Widgets {
         return label(text.toUpperCase(), "h-caps");
     }
 
-    /** The smallest key in the design — a column key or a strip label, mono and upper case. */
+    /** The smallest key in the design: a column key or a strip label, mono and upper case. */
     static Label tiny(String text) {
         return label(text.toUpperCase(), "h-tiny");
     }
@@ -153,7 +153,7 @@ final class Widgets {
      *
      * <p>The label stops being written to and starts being <em>bound</em>, so a refresh that
      * did not move this figure does not touch it: the property fires only on a real change.
-     * Re-pointing is why the unbind comes first — the figure belongs to whichever event or
+     * Re-pointing is why the unbind comes first: the figure belongs to whichever event or
      * user is selected, and the selection moves.
      *
      * @param figure the property to follow, or {@code null} for nothing selected
@@ -276,7 +276,7 @@ final class Widgets {
         return box;
     }
 
-    /** A block with the design's card border but no fill of its own — tables live in these. */
+    /** A block with the design's card border but no fill of its own; tables live in these. */
     static VBox framed(Node... children) {
         VBox box = new VBox(children);
         box.getStyleClass().add("framed");
@@ -309,7 +309,26 @@ final class Widgets {
 
     /** A column of figures: right-aligned and monospaced, so the decimal points line up. */
     static <S> TableColumn<S, String> numCol(String title, double width, Function<S, String> text) {
-        return styledCol(title, width, text, row -> "numeric");
+        return overFigures(styledCol(title, width, text, row -> "numeric"));
+    }
+
+    /**
+     * Puts a column's <em>heading</em> over the right edge of its figures, where the cells
+     * themselves already sit.
+     *
+     * <p>A cell's alignment comes from the class the cell factory hangs on it, which the
+     * header knows nothing about, so a numeric column drew right-aligned figures under a
+     * left-aligned title. This marks the column itself, and JavaFX copies a
+     * {@code TableColumn}'s style classes onto its {@code TableColumnHeader}, which is what
+     * the {@code .column-header.numeric .label} rule in {@code guessmarket.css} then catches.
+     *
+     * <p>{@link #numCol} does it for itself. Call it by hand for a {@link #styledCol} whose
+     * per-row classes are numeric, as the P/L column on the Users screen is: its cells are
+     * right-aligned <em>and</em> coloured by sign.
+     */
+    static <S, T> TableColumn<S, T> overFigures(TableColumn<S, T> column) {
+        column.getStyleClass().add("numeric");
+        return column;
     }
 
     /** The narrow left-hand id column: mono, and quieter than the rest of the row. */
@@ -318,7 +337,7 @@ final class Widgets {
     }
 
     /**
-     * A column whose cells carry a style class chosen per row — how a profit turns green
+     * A column whose cells carry a style class chosen per row: how a profit turns green
      * and a loss red without the row itself being coloured.
      */
     static <S> TableColumn<S, String> styledCol(String title, double width,
@@ -347,7 +366,7 @@ final class Widgets {
         return column;
     }
 
-    /** A column whose cell is a node — a status pill in a table, say. */
+    /** A column whose cell is a node: a status pill in a table, say. */
     static <S> TableColumn<S, S> nodeCol(String title, double width, Function<S, Node> node) {
         TableColumn<S, S> column = new TableColumn<>(title.toUpperCase());
         column.setPrefWidth(width);

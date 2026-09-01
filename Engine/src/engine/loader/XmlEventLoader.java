@@ -29,15 +29,17 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Reads an events file into domain objects, in three steps:
  *
  * <ol>
- *   <li>{@link #openXmlFile} — is there a readable {@code .xml} file at this path?</li>
- *   <li>{@link #parse} — JAXB turns it into the {@code engine.schema} classes, whose
+ *   <li>{@link #openXmlFile}: is there a readable {@code .xml} file at this path?</li>
+ *   <li>{@link #parse}: JAXB turns it into the {@code engine.schema} classes, whose
  *       annotations hold the whole mapping from element to field.</li>
- *   <li>{@link #toEvents} and {@link #toUsers} — the rules are applied, and {@link Event}s
+ *   <li>{@link #toEvents} and {@link #toUsers}: the rules are applied, and {@link Event}s
  *       and {@link User}s are built.</li>
  * </ol>
  *
@@ -45,8 +47,8 @@ import java.util.Set;
  * is a plain {@code xs:int}, so 115 parses fine; {@code GM-option} has
  * {@code maxOccurs="2"} but no {@code minOccurs}, so a one-option event parses fine;
  * nothing forbids two events sharing an id, two users sharing a name, or a user claiming
- * to be Market Maker for an event the file never defines. Unmarshalling is lenient in the same way —
- * absent elements arrive as {@code null} and absent {@code xs:int}s as 0 — so every value
+ * to be Market Maker for an event the file never defines. Unmarshalling is lenient in the same way:
+ * absent elements arrive as {@code null} and absent {@code xs:int}s as 0, so every value
  * is checked here rather than trusted.
  *
  * <p>Nothing in this class touches engine state. A rejected file throws before a single
@@ -88,7 +90,7 @@ public class XmlEventLoader {
     private File openXmlFile(String rawPath) {
         require(rawPath != null, "Please enter a file path.");
 
-        // Windows pastes the path in quotes, macOS pastes spaces escaped — either way the
+        // Windows pastes the path in quotes, macOS pastes spaces escaped, so either way the
         // extension check below has to see the real path, not the wrapping.
         String path = UserPath.normalize(rawPath);
         require(!path.isBlank(), "Please enter a file path.");
@@ -123,13 +125,13 @@ public class XmlEventLoader {
      * <p>By default it carries on past all of them, which is the one place a bad file can
      * turn into plausible-looking data: a value it cannot convert is dropped and the field
      * keeps its Java default. For {@code <id>} and {@code <b>} that default is 0 and the
-     * rules below reject it, but 0 is a perfectly legal commission — so
+     * rules below reject it, but 0 is a perfectly legal commission, so
      * {@code <comision>abc</comision>} would load as a 0% event rather than be reported.
      *
      * <p>A failed conversion is exactly the case that arrives with a linked exception (the
      * {@code NumberFormatException} the parser caught), so those are refused and surface as
-     * an {@link InvalidFileException} naming the line. Everything else — an unexpected
-     * element, say — is let through on purpose: the rules below describe those in the
+     * an {@link InvalidFileException} naming the line. Everything else (an unexpected
+     * element, say) is let through on purpose: the rules below describe those in the
      * file's own vocabulary, and a message like "the only supported market method is LMSR"
      * beats JAXB's version of the same news.
      */
@@ -180,15 +182,12 @@ public class XmlEventLoader {
      * Turns each {@code <GM-user>} into a {@link User}, checking the names against each
      * other and the market-maker ids against the events just built.
      *
-     * @param events the file's events, already built — a market-maker id has to name one
+     * @param events the file's events, already built; a market-maker id has to name one
      */
     private List<User> toUsers(List<XmlUser> xmlUsers, List<Event> events) {
         require(!xmlUsers.isEmpty(), "The file contains no users.");
 
-        Set<Integer> eventIds = new HashSet<>();
-        for (Event event : events) {
-            eventIds.add(event.getId());
-        }
+        Set<Integer> eventIds = events.stream().map(Event::getId).collect(Collectors.toSet());
 
         List<User> users = new ArrayList<>(xmlUsers.size());
         Set<String> namesSeen = new HashSet<>();
@@ -205,42 +204,50 @@ public class XmlEventLoader {
 
             users.add(new User(name, cash, marketMakerEventIds(xmlUser, name, eventIds, marketMakerOf)));
         }
-        requireOrderBooksAreFunded(events, users, marketMakerOf);
+        requireEveryEventHasAMarketMaker(events, users, marketMakerOf);
         return users;
     }
 
     /**
-     * An order book takes its initial investment from the event's Market Maker, so the
-     * file has to name one, and they have to be able to afford it.
+     * Every event has exactly one Market Maker, and an order book's has to be able to
+     * afford the investment it opens with.
      *
-     * <p>This is the one rule that needs both halves of the file at once, and the reason
-     * {@code initial-cash} is worth checking beyond "not negative": a market maker who
-     * starts with less than the book asks for could never open it.
+     * <p>The "exactly one" is enforced from both ends: {@link #marketMakerEventIds} refuses
+     * a second user claiming an event, and this refuses an event nobody claimed. So the
+     * whole engine can rely on {@code EventManager.getMarketMaker} finding somebody: the
+     * user who closes the event, receives its commission, and is handed back whatever is
+     * left in an LMSR account at settlement. An event created at runtime satisfies the same
+     * rule by construction: its creator is its Market Maker.
      *
-     * <p>Only order-book events are asked this. An LMSR event's market maker puts nothing
-     * in — the b·ln2 subsidy is the house's, not a user's.
+     * <p>The funding half is the one rule that needs both halves of the file at once, and
+     * the reason {@code initial-cash} is worth checking beyond "not negative": a market
+     * maker who starts with less than the book asks for could never open it. Only order
+     * books are asked it, since an LMSR event's maker puts nothing in, since the b·ln2 subsidy
+     * is the house's money rather than theirs.
      */
-    private void requireOrderBooksAreFunded(List<Event> events,
-                                            List<User> users,
-                                            Map<Integer, String> marketMakerOf) {
-        Map<String, User> byName = new HashMap<>();
-        for (User user : users) {
-            byName.put(user.getName(), user);
-        }
+    private void requireEveryEventHasAMarketMaker(List<Event> events,
+                                                  List<User> users,
+                                                  Map<Integer, String> marketMakerOf) {
+        // toMap rather than a loop of puts: it throws on a duplicate key instead of quietly
+        // keeping the last one, and by here toUsers has already refused a file that names two
+        // users the same. So the strict form can only fire if that rule is ever lost.
+        Map<String, User> byName = users.stream()
+                .collect(Collectors.toMap(User::getName, Function.identity()));
 
         for (Event event : events) {
+            String makerName = marketMakerOf.get(event.getId());
+            require(makerName != null,
+                    "Event %d ('%s') has no market maker: no user lists it under "
+                            + "'GM-mareket-maker'.",
+                    event.getId(), event.getName());
+
             if (!(event.getTradingMethod() instanceof TradingMethod.OrderBook orderBook)) {
                 continue;
             }
-            String makerName = marketMakerOf.get(event.getId());
-            require(makerName != null,
-                    "Event '%s' trades on an order book, but no user is its market maker.",
-                    event.getName());
-
             User maker = byName.get(makerName);
             require(maker.getInitialCash() >= orderBook.initialInvestment(),
                     "User '%s' is market maker for event '%s', whose order book asks for an initial "
-                            + "investment of %d — more than the %d they start with.",
+                            + "investment of %d, more than the %d they start with.",
                     maker.getName(), event.getName(), orderBook.initialInvestment(), maker.getInitialCash());
         }
     }
@@ -289,8 +296,8 @@ public class XmlEventLoader {
      * {@code <GM-order-book>}.
      *
      * <p>A choice is what the schema says, not what unmarshalling enforces: a file naming
-     * both fills both fields, and a file naming neither — or naming something else
-     * entirely — fills neither. Hence exactly one is asked for here.
+     * both fills both fields, and a file naming neither (or naming something else
+     * entirely) fills neither. Hence exactly one is asked for here.
      */
     private TradingMethod tradingMethod(XmlMarketMethod method, String eventName) {
         require(method != null, "Event '%s' has no market method.", eventName);
@@ -312,8 +319,8 @@ public class XmlEventLoader {
     }
 
     /**
-     * Reads the {@code <GM-order-book>} attributes. The initial investment may be 0 — a
-     * market maker who buys no initial shares — but the base value may not, so d is asked
+     * Reads the {@code <GM-order-book>} attributes. The initial investment may be 0 (a
+     * market maker who buys no initial shares), but the base value may not, so d is asked
      * to be positive the way b is.
      */
     private TradingMethod orderBookMethod(XmlOrderBook orderBook, String eventName) {

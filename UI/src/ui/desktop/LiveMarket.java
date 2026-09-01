@@ -21,7 +21,7 @@ import java.util.Map;
  * The observable mirror the screens follow: a property per option price, per event account
  * and per user balance, re-read from the engine on every {@link DesktopApp#refresh()}.
  *
- * <p>The engine is plain Java and says nothing when it changes — it is asked, never
+ * <p>The engine is plain Java and says nothing when it changes: it is asked, never
  * subscribed to. This class is the adapter that gives the UI something to
  * {@code addListener} to: {@link #sync} pushes the engine's current figures into
  * {@link DoubleProperty properties}, and a property fires only when its value actually
@@ -42,13 +42,14 @@ import java.util.Map;
  *
  * <ul>
  *   <li><b>Prices</b> keep no history here. The engine already holds the authoritative
- *       one — {@code getPriceHistory} replays an LMSR event through the scoring rule, and
- *       an order book's is read off its trade log — so it covers trades made before this
+ *       one: {@code getPriceHistory} replays an LMSR event through the scoring rule, and
+ *       an order book's is read off its trade log, so it covers trades made before this
  *       window opened and survives a session being loaded from disk. The properties below
  *       say <em>when</em> to redraw; the engine still says <em>what</em> to draw.
  *   <li><b>Balances</b> keep history here, because nothing else does. The engine stores a
- *       current balance and no ledger, so the only record of how it got there is the one
- *       accumulated from the moment this window opened. See {@link #balanceHistory}.
+ *       current balance, the cash the file started the account with, and no ledger between
+ *       them, so the timeline is that initial figure followed by every move made since this
+ *       window opened. See {@link #balanceHistory}.
  * </ul>
  */
 class LiveMarket {
@@ -57,7 +58,7 @@ class LiveMarket {
     private final Map<Integer, DoubleProperty[]> prices = new LinkedHashMap<>();
 
     /**
-     * The last price each option of an order book actually traded at — {@code null} until
+     * The last price each option of an order book actually traded at, or {@code null} until
      * one has, which is why this is an object property and not a {@code double} one. Its
      * neighbour {@link #prices} answers a different question: what the option is worth now,
      * falling back to the middle of the spread when nothing has traded.
@@ -114,14 +115,17 @@ class LiveMarket {
     /**
      * The balance timeline behind the Users screen's chart, oldest first.
      *
-     * <p>One point per <em>change</em> rather than per refresh, so the line steps where
-     * something actually happened to the account, the same way the price chart plots one
-     * point per transaction.
+     * <p><b>It begins at the account's initial cash</b>, {@code UserView.initialCash}, what
+     * the file gave this user, and then carries one point per <em>change</em> rather than
+     * per refresh, so the line steps where something actually happened to the account. Same
+     * reasoning as the price series beginning at the market's opening price: an account
+     * nobody has spent from still has a balance, and a line that starts at the first change
+     * hides where the money came from. It also makes the one move that always happens before
+     * this window opens visible: a Market Maker paying an order book's initial investment.
      *
-     * <p>This starts when the window opens: the engine keeps no per-user ledger, so a
-     * balance that moved before this run — including everything behind a session loaded
-     * from a {@code .gm} file — is not recoverable and is not drawn. The first point is
-     * whatever the balance was when the file came in.
+     * <p>Only the two ends of what happened before this run are recoverable: the engine keeps
+     * no per-user ledger, so a session loaded from a {@code .gm} file draws its whole past as
+     * a single step from the initial cash to the balance it was saved at.
      */
     List<Double> balanceHistory(String userName) {
         // Copied, not handed out: the caller keeps it inside a chart series, and the next
@@ -161,11 +165,17 @@ class LiveMarket {
         for (UserView user : engine.getUsers()) {
             DoubleProperty held = balance(user.name());
             List<Double> history = balanceHistory.computeIfAbsent(user.name(), name -> new ArrayList<>());
-            // An empty history means this user has just arrived: record where they started,
-            // so a chart has something to draw before the first trade rather than nothing.
+            // An empty history means this user has just arrived. The line starts at what the
+            // file gave them rather than at what they hold now, because by the time this runs
+            // the load has already spent some of it: a Market Maker's initial investment
+            // leaves their balance before the window sees the market at all, and a chart
+            // opening at the figure that came out the other side hides what it cost.
             if (history.isEmpty()) {
-                history.add(user.balance());
-            } else if (held.get() != user.balance()) {
+                history.add(user.initialCash());
+            }
+            // Then one point per move, whether it happened just now or before this window
+            // opened, so a restored session's whole past arrives as a single step.
+            if (history.get(history.size() - 1) != user.balance()) {
                 history.add(user.balance());
             }
             held.set(user.balance());
@@ -182,7 +192,7 @@ class LiveMarket {
      * this class's own documentation: after a reset, {@code price(5, 0)} hands back a
      * <em>different</em> object, and anything still listening to the old one will never hear
      * from it again. Zeroing instead would keep the identity but would fire every listener
-     * on the way — a following {@link Ticker} would roll all the way down to zero and back
+     * on the way, and a following {@link Ticker} would roll all the way down to zero and back
      * up on every file load. Dropping is the right trade because {@code DesktopApp} calls
      * this immediately before a {@code refresh()}, and that refresh re-points every
      * subscription there is.

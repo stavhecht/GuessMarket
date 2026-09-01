@@ -20,12 +20,12 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * The arithmetic the screens do on top of the engine's DTOs — counting participants,
+ * The arithmetic the screens do on top of the engine's DTOs: counting participants,
  * flattening a trade log into rows, working out what a holding is worth.
  *
  * <p>None of it is market logic: no price is invented here and no money moves. Every
  * figure is either read straight off a DTO or is a sum of figures that were. The one
- * thing that looks like pricing — what a share is worth right now — is a price the engine
+ * thing that looks like pricing, what a share is worth right now, is a price the engine
  * already quoted, multiplied by a share count.
  *
  * <p>Two of the design's columns cannot be filled for an LMSR event and are reported as
@@ -66,13 +66,28 @@ final class MarketData {
         return "ACTIVE".equalsIgnoreCase(event.status());
     }
 
+    /**
+     * Whether the acting user may seal this event: they are its Market Maker, and it is
+     * still open.
+     *
+     * <p>The same question {@code MarketEngine.closeEvent} asks before it does anything, so
+     * a screen can hide the button rather than offer one that is certain to be refused.
+     * Every event has a maker, so this is false for everybody but one person.
+     */
+    static boolean canClose(MarketEngine engine, EventView event) {
+        return event != null
+                && isActive(event)
+                && event.marketMaker() != null
+                && event.marketMaker().equals(engine.getCurrentUserName());
+    }
+
     static String methodLabel(EventView event) {
         return isLmsr(event) ? "LMSR" : "Order book";
     }
 
     static String commissionLabel(EventView event) {
         String when = "PER_PURCHASE".equals(event.commissionMethod()) ? "on purchase" : "on close";
-        return Widgets.percent(event.commissionRate()) + " " + when;
+        return Widgets.percent(event.commissionRate()) + "  " + when;
     }
 
     /** Everyone holding shares in this event, plus its market maker. */
@@ -115,17 +130,17 @@ final class MarketData {
 
     /**
      * What each option last traded at as an order book's log runs forward, starting from
-     * where the market opened — the series behind the design's price chart.
+     * where the market opened: the series behind the design's price chart.
      *
      * <p>This is bookkeeping, not pricing: each point carries the other option's previous
      * price along unchanged, because nothing happened to it. The LMSR series is the
      * engine's own ({@code MarketEngine.getPriceHistory}), since an LMSR price is a
      * function of outstanding shares rather than of anything written in the log.
      *
-     * <p>The first point is the engine's {@code openingPrice} — where the Market Maker's
-     * initial allocation was quoted — so the line begins with the market rather than with
-     * its first trade, as the LMSR series does. An event that opened with no allocation has
-     * no such price and starts as it always did: at {@code NaN}, which {@link SparkChart}
+     * <p>The first point is the engine's {@code openingPrice}, what the Market Maker's
+     * initial allocation cost them a share, so the line begins with the market rather than
+     * with its first trade, as the LMSR series does. An event that opened with no allocation
+     * has no such price and starts as it always did: at {@code NaN}, which {@link SparkChart}
      * draws as a gap, with the line beginning at the first trade.
      */
     static List<double[]> priceSeries(OrderBookStatusView status) {

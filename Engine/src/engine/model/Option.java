@@ -33,7 +33,7 @@ public class Option implements Serializable {
      *
      * <p>Only ever called with a positive amount: this is the count of shares in
      * existence, and nothing destroys them. An LMSR purchase issues them, and in an order
-     * book they are issued by the Market Maker's initial allocation and by minting — a
+     * book they are issued by the Market Maker's initial allocation and by minting; a
      * sale between two participants moves shares that already exist and leaves this alone.
      */
     public void addShares(long amount) {

@@ -7,7 +7,7 @@ import java.util.List;
 /**
  * The full live state of one event.
  *
- * @param b                     the liquidity parameter this event is priced with — the
+ * @param b                     the liquidity parameter this event is priced with: the
  *                              larger it is, the less a purchase moves the price
  * @param history               newest trade first; {@link Trade} is immutable, so the
  *                              log is passed through rather than copied into a view
