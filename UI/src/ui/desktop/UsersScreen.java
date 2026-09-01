@@ -58,6 +58,21 @@ import java.util.Map;
  */
 class UsersScreen extends HBox {
 
+    /** The list column is fixed; the rest of the screen is what the window's width moves. */
+    private static final double LIST_WIDTH = 300;
+
+    /**
+     * The smallest the account column and the screen are still worth drawing at.
+     *
+     * <p>The width is the account header's own minimum (a name, then the two cards) plus
+     * the room its scroll bar takes out of the column, so the panels inside never have to
+     * be drawn narrower than they can be read at.
+     */
+    private static final double ACCOUNT_MIN_WIDTH = 592;
+
+    /** Both columns can be emptied of rows, so the screen's height has its own floor. */
+    private static final double MIN_HEIGHT = 470;
+
     private static final String ALL = "All";
 
     private final DesktopApp app;
@@ -171,11 +186,12 @@ class UsersScreen extends HBox {
         ScrollPane right = new ScrollPane(buildAccount());
         right.setFitToWidth(true);
         right.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        left.setMinWidth(300);
-        left.setPrefWidth(300);
-        left.setMaxWidth(300);
+        left.setMinWidth(LIST_WIDTH);
+        left.setPrefWidth(LIST_WIDTH);
+        left.setMaxWidth(LIST_WIDTH);
         HBox.setHgrow(right, Priority.ALWAYS);
-        right.setMinWidth(0);
+        right.setMinWidth(ACCOUNT_MIN_WIDTH);
+        setMinHeight(MIN_HEIGHT);
         getChildren().addAll(left, right);
     }
 
@@ -190,14 +206,13 @@ class UsersScreen extends HBox {
                 app.perform(() -> "Now acting as " + app.engine().selectUser(now.name()).name() + ".");
             }
         });
-        VBox.setVgrow(users, Priority.ALWAYS);
 
         HBox footer = Widgets.row(8, Widgets.tiny("total held"), Widgets.grower(), totalHeld);
         footer.getStyleClass().add("footer-strip");
 
         VBox body = new VBox(users, footer);
         VBox.setVgrow(users, Priority.ALWAYS);
-        return Widgets.panel(Widgets.panelHead("Users", null, userCount), body);
+        return Widgets.panel(Widgets.panelHead("Users", userCount), body);
     }
 
     // --- the right column ---
@@ -226,7 +241,9 @@ class UsersScreen extends HBox {
 
         VBox who = new VBox(4, heading, summary);
         HBox.setHgrow(who, Priority.ALWAYS);
-        who.setMinWidth(0);
+        // Whose account this is outranks the line under it, so the block keeps enough room
+        // for a name and the summary is what truncates when the window is narrow.
+        who.setMinWidth(150);
 
         VBox balanceCard = Widgets.card(Widgets.tiny("account balance"), balance);
         balanceCard.setMinWidth(170);
@@ -275,7 +292,7 @@ class UsersScreen extends HBox {
         VBox body = new VBox(positions);
         VBox.setVgrow(positions, Priority.ALWAYS);
         return Widgets.panel(
-                Widgets.panelHead("Events: participation & ownership", null,
+                Widgets.panelHead("Events: participation & ownership",
                         Widgets.filter("role", roleFilter, 118)),
                 body);
     }
@@ -284,7 +301,7 @@ class UsersScreen extends HBox {
         bars.setPadding(Widgets.pad(12, 12, 12, 12));
         bars.setMinHeight(90);
         return Widgets.panel(
-                Widgets.panelHead("Position value by event", null,
+                Widgets.panelHead("Position value by event",
                         SparkChart.legend("value now", "accent"),
                         SparkChart.legend("if that side wins", "accent-line")),
                 bars);

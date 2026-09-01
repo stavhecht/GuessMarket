@@ -194,8 +194,13 @@ final class Widgets {
     /** The design's filter control: a small labelled drop-down in the sub-bar. */
     static <T> HBox filter(String name, ComboBox<T> choices, double width) {
         choices.setPrefWidth(width);
-        choices.setMinWidth(width);
-        return row(6, Pos.CENTER_LEFT, tiny(name), choices);
+        // In a narrow window it is the box that gives width back, not the word in front of
+        // it: a box still says which value is chosen at half its size, and a subbar of
+        // "..." over three boxes says nothing at all.
+        choices.setMinWidth(Math.min(width, 84));
+        Label key = tiny(name);
+        key.setMinWidth(Region.USE_PREF_SIZE);
+        return row(6, Pos.CENTER_LEFT, key, choices);
     }
 
     // --- layout ---
@@ -243,23 +248,13 @@ final class Widgets {
         return panel;
     }
 
-    /** The header strip of a panel: an upper-case subject, a count, then whatever else. */
-    static HBox panelHead(String title, String count, Node... trailing) {
+    /** The header strip of a panel: an upper-case subject, then whatever else. */
+    static HBox panelHead(String title, Node... trailing) {
         HBox head = row(8, caps(title));
-        if (count != null) {
-            head.getChildren().add(pill(count, "count"));
-        }
         head.getChildren().add(grower());
         head.getChildren().addAll(trailing);
         head.getStyleClass().add("panel-head");
         return head;
-    }
-
-    /** A key over its value, the shape the design uses for every small statistic. */
-    static VBox stacked(String key, Label value) {
-        VBox box = new VBox(2, tiny(key), value);
-        box.setAlignment(Pos.CENTER_LEFT);
-        return box;
     }
 
     /** A key beside its value, on one line, for the detail grids. */

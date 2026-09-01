@@ -17,6 +17,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.layout.Region;
@@ -166,8 +167,9 @@ public class DesktopApp extends Application {
 
         stage.setScene(scene);
         stage.setTitle("Guess Market");
-        stage.setMinWidth(1180);
-        stage.setMinHeight(760);
+        // The floor is the file bar: everything under it scrolls, and that strip cannot.
+        stage.setMinWidth(700);
+        stage.setMinHeight(460);
         stage.show();
 
         refresh();
@@ -215,6 +217,12 @@ public class DesktopApp extends Application {
      * bar and the percentage hidden and unmanaged.
      */
     private void wireFileBar() {
+        // The file bar is above the scrolling workspace and is squeezed by the window
+        // itself, so its buttons hold their labels and the path field is what gives.
+        for (Button button : List.of(loadFile, saveSession, loadSession, themeToggle)) {
+            button.setMinWidth(Region.USE_PREF_SIZE);
+        }
+
         loadFile.setOnAction(action -> chooseFile("Load events file", "XML files", "*.xml", false)
                 .ifPresent(this::loadInBackground));
 
@@ -245,10 +253,26 @@ public class DesktopApp extends Application {
         whileIdle.addAll(List.of(loadFile, saveSession, loadSession));
     }
 
+    /**
+     * A tab's body, in the padded ground the design puts it on, and behind a scroll pane.
+     *
+     * <p>The window is resizable and will be opened on screens smaller than the one this
+     * was drawn for, so every screen names the smallest size it is still worth drawing at
+     * ({@code EventsScreen} its two panels, {@code UsersScreen} its account column) and
+     * gives width and height back down to that. Underneath it, the choice is between
+     * crushing a table into its neighbours and scrolling, and this is the scrolling: the
+     * viewport is fitted in both directions, so the bars appear only past the floor and
+     * nothing moves at the sizes above it.
+     */
     private static Region workspace(javafx.scene.Node content) {
         StackPane pane = new StackPane(content);
         pane.getStyleClass().add("workspace");
-        return pane;
+
+        ScrollPane scroller = new ScrollPane(pane);
+        scroller.setFitToWidth(true);
+        scroller.setFitToHeight(true);
+        scroller.getStyleClass().add("workspace-scroll");
+        return scroller;
     }
 
     // --- loading ---

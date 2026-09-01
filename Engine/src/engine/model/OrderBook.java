@@ -58,10 +58,6 @@ public class OrderBook implements Serializable {
         return settings.allowMint();
     }
 
-    public TradingMethod.OrderBook getSettings() {
-        return settings;
-    }
-
     // --- placing and removing ---
 
     /** Stamps the next order number. Kept here so two orders can never share one. */

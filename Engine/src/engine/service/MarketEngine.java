@@ -505,8 +505,7 @@ public class MarketEngine {
                 order.getQuantity(),
                 order.getFilled(),
                 order.getRemaining(),
-                fills,
-                buildOrderBookView(event));
+                fills);
     }
 
     /**

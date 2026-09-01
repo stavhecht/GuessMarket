@@ -17,6 +17,7 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
@@ -42,6 +43,20 @@ class EventsScreen extends HBox {
 
     /** Markets are binary by construction, the same way {@code Event.OPTION_COUNT} says. */
     private static final int OPTIONS = 2;
+
+    /**
+     * The smallest the market panel is still worth drawing at: two ladders side by side,
+     * which is {@code OrderBookPane}'s own minimum plus the panel around them.
+     *
+     * <p>The list panel opposite needs no such figure because it is asked for its own: its
+     * table and its filter bar know what they need, and the panel is not behind a scroll
+     * pane, so the number reaches this screen by itself. This one cannot: what is inside
+     * the market panel <em>is</em> behind one, and a scroll pane asks for nothing.
+     */
+    private static final double MARKET_MIN_WIDTH = 610;
+
+    /** Both panels can be emptied of rows, so the screen's height has its own floor. */
+    private static final double MIN_HEIGHT = 470;
 
     private final DesktopApp app;
 
@@ -126,8 +141,8 @@ class EventsScreen extends HBox {
         VBox right = buildEventPanel();
         HBox.setHgrow(left, Priority.ALWAYS);
         HBox.setHgrow(right, Priority.ALWAYS);
-        left.setMinWidth(0);
-        right.setMinWidth(0);
+        right.setMinWidth(MARKET_MIN_WIDTH);
+        setMinHeight(MIN_HEIGHT);
         getChildren().addAll(left, right);
     }
 
@@ -148,7 +163,6 @@ class EventsScreen extends HBox {
                 event -> Widgets.statusPill(event.status())));
         events.getSelectionModel().selectedItemProperty()
                 .addListener((observable, was, now) -> select(now));
-        VBox.setVgrow(events, Priority.ALWAYS);
 
         methodFilter.getItems().setAll(ALL, "LMSR", "Order book");
         statusFilter.getItems().setAll(ALL, "Active", "Closed");
@@ -158,8 +172,15 @@ class EventsScreen extends HBox {
             filter.setOnAction(action -> applyFilters());
         }
 
+        Label filterKey = Widgets.tiny("filter");
+        filterKey.setMinWidth(Region.USE_PREF_SIZE);
+        // The count of what is showing is the one thing on this bar that is said twice (the
+        // pill in the panel head says it too), so it is the one thing allowed to disappear
+        // when the window is narrow. Blanking the ellipsis is what lets it go quietly.
+        shown.setEllipsisString("");
+
         HBox filters = Widgets.row(8,
-                Widgets.tiny("filter"),
+                filterKey,
                 Widgets.filter("method", methodFilter, 108),
                 Widgets.filter("status", statusFilter, 90),
                 Widgets.filter("commission", commissionFilter, 118),
@@ -183,7 +204,7 @@ class EventsScreen extends HBox {
 
         VBox body = new VBox(filters, events, preview);
         VBox.setVgrow(events, Priority.ALWAYS);
-        return Widgets.panel(Widgets.panelHead("Events", null, eventCount, Widgets.gap(4), create), body);
+        return Widgets.panel(Widgets.panelHead("Events", eventCount, Widgets.gap(4), create), body);
     }
 
     // --- the right panel ---

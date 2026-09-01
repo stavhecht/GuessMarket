@@ -29,6 +29,15 @@
     * Table rows, ladder rows and position bars are all built in code; the columns are
       real, the rows are not.
 
+  The window is resizable and the layout is drawn for a screen bigger than every screen it
+  will be opened on, so each tab's body sits in a scroll pane and the root carries no
+  minimum of its own: DesktopApp sets the window's, and below the size a screen names as
+  its smallest readable one the workspace scrolls rather than the panels being crushed.
+  The scroll pane written out below each Tab is the one DesktopApp.workspace() builds, and
+  the minWidth figures on the panels inside it are the ones EventsScreen and UsersScreen
+  set in Java: a stand-in, like everything else in these two sections, but a stand-in that
+  is measured the same way, so what Scene Builder shows narrow is what the app does narrow.
+
   The stylesheet is the real one the app uses, so the preview is the actual design.
   Switch the look by changing the root's styleClass to theme-dark or theme-neon, though at
   runtime Theme.applyTo overwrites that class with whichever theme the toggle is showing.
@@ -58,14 +67,14 @@
 
 <BorderPane xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml"
             fx:controller="ui.desktop.DesktopApp"
-            prefWidth="1440" prefHeight="940" minWidth="1180" minHeight="760"
+            prefWidth="1440" prefHeight="940" minWidth="0" minHeight="0"
             styleClass="theme-light" stylesheets="@guessmarket.css">
 
     <!-- ====================== DesktopApp.wireFileBar(): REAL ======================= -->
     <top>
         <HBox spacing="10" alignment="CENTER_LEFT" styleClass="toolstrip">
             <children>
-                <Button fx:id="loadFile" text="Load File" styleClass="primary"/>
+                <Button fx:id="loadFile" text="Load File" styleClass="primary" minWidth="-Infinity"/>
 
                 <!-- The design's three states in one field: nothing loaded, loading, loaded. -->
                 <HBox fx:id="field" spacing="8" alignment="CENTER_LEFT" styleClass="sunken"
@@ -84,9 +93,9 @@
                     </children>
                 </HBox>
 
-                <Button fx:id="saveSession" text="Save session"/>
-                <Button fx:id="loadSession" text="Load session"/>
-                <Button fx:id="themeToggle" text="Light" styleClass="tiny"/>
+                <Button fx:id="saveSession" text="Save session" minWidth="-Infinity"/>
+                <Button fx:id="loadSession" text="Load session" minWidth="-Infinity"/>
+                <Button fx:id="themeToggle" text="Light" styleClass="tiny" minWidth="-Infinity"/>
             </children>
         </HBox>
     </top>
@@ -102,308 +111,313 @@
                      ============================================================ -->
                 <Tab fx:id="eventsTab" text="Events" closable="false">
                     <content>
-                        <StackPane styleClass="workspace">
-                            <children>
-                                <HBox spacing="14">
-                                    <children>
+                        <ScrollPane fitToWidth="true" fitToHeight="true"
+                                    styleClass="workspace-scroll">
+                            <StackPane styleClass="workspace">
+                                <children>
+                                    <HBox spacing="14" minHeight="470">
+                                        <children>
 
-                                        <!-- EventsScreen.buildEventList() -->
-                                        <VBox styleClass="panel" minWidth="0" HBox.hgrow="ALWAYS">
-                                            <children>
-                                                <HBox spacing="8" alignment="CENTER_LEFT" styleClass="panel-head">
-                                                    <children>
-                                                        <Label text="EVENTS" styleClass="h-caps"/>
-                                                        <Region HBox.hgrow="ALWAYS"/>
-                                                        <Label fx:id="eventCount" text="0" styleClass="pill, count"/>
-                                                        <Region minWidth="4" prefWidth="4"/>
-                                                        <Button text="Create event" styleClass="small"/>
-                                                    </children>
-                                                </HBox>
+                                            <!-- EventsScreen.buildEventList(): sizes itself,
+                                                 off its table and its filter bar. -->
+                                            <VBox styleClass="panel" HBox.hgrow="ALWAYS">
+                                                <children>
+                                                    <HBox spacing="8" alignment="CENTER_LEFT" styleClass="panel-head">
+                                                        <children>
+                                                            <Label text="EVENTS" styleClass="h-caps"/>
+                                                            <Region HBox.hgrow="ALWAYS"/>
+                                                            <Label fx:id="eventCount" text="0" styleClass="pill, count"/>
+                                                            <Region minWidth="4" prefWidth="4"/>
+                                                            <Button text="Create event" styleClass="small"/>
+                                                        </children>
+                                                    </HBox>
 
-                                                <VBox VBox.vgrow="ALWAYS">
-                                                    <children>
-                                                        <HBox spacing="8" alignment="CENTER_LEFT" styleClass="subbar">
-                                                            <children>
-                                                                <Label text="FILTER" styleClass="h-tiny"/>
-                                                                <HBox spacing="6" alignment="CENTER_LEFT">
-                                                                    <children>
-                                                                        <Label text="METHOD" styleClass="h-tiny"/>
-                                                                        <ComboBox fx:id="methodFilter" value="All"
-                                                                                  minWidth="108" prefWidth="108">
-                                                                            <items>
-                                                                                <FXCollections fx:factory="observableArrayList">
-                                                                                    <String fx:value="All"/>
-                                                                                    <String fx:value="LMSR"/>
-                                                                                    <String fx:value="Order book"/>
-                                                                                </FXCollections>
-                                                                            </items>
-                                                                        </ComboBox>
-                                                                    </children>
-                                                                </HBox>
-                                                                <HBox spacing="6" alignment="CENTER_LEFT">
-                                                                    <children>
-                                                                        <Label text="STATUS" styleClass="h-tiny"/>
-                                                                        <ComboBox fx:id="statusFilter" value="All"
-                                                                                  minWidth="90" prefWidth="90">
-                                                                            <items>
-                                                                                <FXCollections fx:factory="observableArrayList">
-                                                                                    <String fx:value="All"/>
-                                                                                    <String fx:value="Active"/>
-                                                                                    <String fx:value="Closed"/>
-                                                                                </FXCollections>
-                                                                            </items>
-                                                                        </ComboBox>
-                                                                    </children>
-                                                                </HBox>
-                                                                <HBox spacing="6" alignment="CENTER_LEFT">
-                                                                    <children>
-                                                                        <Label text="COMMISSION" styleClass="h-tiny"/>
-                                                                        <ComboBox fx:id="commissionFilter" value="All"
-                                                                                  minWidth="118" prefWidth="118">
-                                                                            <items>
-                                                                                <FXCollections fx:factory="observableArrayList">
-                                                                                    <String fx:value="All"/>
-                                                                                    <String fx:value="On purchase"/>
-                                                                                    <String fx:value="On close"/>
-                                                                                </FXCollections>
-                                                                            </items>
-                                                                        </ComboBox>
-                                                                    </children>
-                                                                </HBox>
-                                                                <Region HBox.hgrow="ALWAYS"/>
-                                                                <Label fx:id="shown" text="3 of 3" styleClass="note"/>
-                                                            </children>
-                                                        </HBox>
+                                                    <VBox VBox.vgrow="ALWAYS">
+                                                        <children>
+                                                            <HBox spacing="8" alignment="CENTER_LEFT" styleClass="subbar">
+                                                                <children>
+                                                                    <Label text="FILTER" styleClass="h-tiny" minWidth="-Infinity"/>
+                                                                    <HBox spacing="6" alignment="CENTER_LEFT">
+                                                                        <children>
+                                                                            <Label text="METHOD" styleClass="h-tiny" minWidth="-Infinity"/>
+                                                                            <ComboBox fx:id="methodFilter" value="All"
+                                                                                      minWidth="84" prefWidth="108">
+                                                                                <items>
+                                                                                    <FXCollections fx:factory="observableArrayList">
+                                                                                        <String fx:value="All"/>
+                                                                                        <String fx:value="LMSR"/>
+                                                                                        <String fx:value="Order book"/>
+                                                                                    </FXCollections>
+                                                                                </items>
+                                                                            </ComboBox>
+                                                                        </children>
+                                                                    </HBox>
+                                                                    <HBox spacing="6" alignment="CENTER_LEFT">
+                                                                        <children>
+                                                                            <Label text="STATUS" styleClass="h-tiny" minWidth="-Infinity"/>
+                                                                            <ComboBox fx:id="statusFilter" value="All"
+                                                                                      minWidth="84" prefWidth="90">
+                                                                                <items>
+                                                                                    <FXCollections fx:factory="observableArrayList">
+                                                                                        <String fx:value="All"/>
+                                                                                        <String fx:value="Active"/>
+                                                                                        <String fx:value="Closed"/>
+                                                                                    </FXCollections>
+                                                                                </items>
+                                                                            </ComboBox>
+                                                                        </children>
+                                                                    </HBox>
+                                                                    <HBox spacing="6" alignment="CENTER_LEFT">
+                                                                        <children>
+                                                                            <Label text="COMMISSION" styleClass="h-tiny" minWidth="-Infinity"/>
+                                                                            <ComboBox fx:id="commissionFilter" value="All"
+                                                                                      minWidth="84" prefWidth="118">
+                                                                                <items>
+                                                                                    <FXCollections fx:factory="observableArrayList">
+                                                                                        <String fx:value="All"/>
+                                                                                        <String fx:value="On purchase"/>
+                                                                                        <String fx:value="On close"/>
+                                                                                    </FXCollections>
+                                                                                </items>
+                                                                            </ComboBox>
+                                                                        </children>
+                                                                    </HBox>
+                                                                    <Region HBox.hgrow="ALWAYS"/>
+                                                                    <Label fx:id="shown" text="3 of 3" styleClass="note" ellipsisString=""/>
+                                                                </children>
+                                                            </HBox>
 
-                                                        <TableView fx:id="events" VBox.vgrow="ALWAYS">
-                                                            <columns>
-                                                                <TableColumn text="ID" prefWidth="40" sortable="false"/>
-                                                                <TableColumn text="EVENT" prefWidth="150" sortable="false"/>
-                                                                <TableColumn text="METHOD" prefWidth="90" sortable="false"/>
-                                                                <TableColumn text="COMMISSION" prefWidth="90" sortable="false"/>
-                                                                <TableColumn text="STATUS" prefWidth="72" sortable="false"/>
-                                                            </columns>
-                                                        </TableView>
+                                                            <TableView fx:id="events" VBox.vgrow="ALWAYS">
+                                                                <columns>
+                                                                    <TableColumn text="ID" prefWidth="40" sortable="false"/>
+                                                                    <TableColumn text="EVENT" prefWidth="150" sortable="false"/>
+                                                                    <TableColumn text="METHOD" prefWidth="90" sortable="false"/>
+                                                                    <TableColumn text="COMMISSION" prefWidth="90" sortable="false"/>
+                                                                    <TableColumn text="STATUS" prefWidth="72" sortable="false"/>
+                                                                </columns>
+                                                            </TableView>
 
-                                                        <VBox spacing="8" styleClass="subbar">
-                                                            <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
-                                                            <children>
-                                                                <Label text="SELECTED EVENT" styleClass="h-tiny"/>
-                                                                <Label fx:id="previewName" text="–" styleClass="h-section"/>
-                                                                <Label fx:id="previewDescription" text="" styleClass="muted"
-                                                                       wrapText="true" minHeight="32"/>
-                                                                <HBox spacing="18" alignment="TOP_LEFT">
-                                                                    <children>
-                                                                        <VBox spacing="3" minWidth="0">
-                                                                            <children>
-                                                                                <Label text="OWNER" styleClass="h-tiny"/>
-                                                                                <Label fx:id="previewOwner" text="–" styleClass="num"/>
-                                                                            </children>
-                                                                        </VBox>
-                                                                        <VBox spacing="3" minWidth="0">
-                                                                            <children>
-                                                                                <Label text="OPTIONS" styleClass="h-tiny"/>
-                                                                                <Label fx:id="previewOptions" text="–" styleClass="muted"/>
-                                                                            </children>
-                                                                        </VBox>
-                                                                        <VBox spacing="3" minWidth="0">
-                                                                            <children>
-                                                                                <Label text="COMMISSION" styleClass="h-tiny"/>
-                                                                                <Label fx:id="previewCommission" text="–" styleClass="muted"/>
-                                                                            </children>
-                                                                        </VBox>
-                                                                        <VBox spacing="3" minWidth="0">
-                                                                            <children>
-                                                                                <Label text="PARTICIPANTS" styleClass="h-tiny"/>
-                                                                                <Label fx:id="previewParticipants" text="–" styleClass="num"/>
-                                                                            </children>
-                                                                        </VBox>
-                                                                    </children>
-                                                                </HBox>
-                                                            </children>
-                                                        </VBox>
-                                                    </children>
-                                                </VBox>
-                                            </children>
-                                        </VBox>
+                                                            <VBox spacing="8" styleClass="subbar">
+                                                                <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+                                                                <children>
+                                                                    <Label text="SELECTED EVENT" styleClass="h-tiny"/>
+                                                                    <Label fx:id="previewName" text="–" styleClass="h-section"/>
+                                                                    <Label fx:id="previewDescription" text="" styleClass="muted"
+                                                                           wrapText="true" minHeight="32"/>
+                                                                    <HBox spacing="18" alignment="TOP_LEFT">
+                                                                        <children>
+                                                                            <VBox spacing="3" minWidth="0">
+                                                                                <children>
+                                                                                    <Label text="OWNER" styleClass="h-tiny"/>
+                                                                                    <Label fx:id="previewOwner" text="–" styleClass="num"/>
+                                                                                </children>
+                                                                            </VBox>
+                                                                            <VBox spacing="3" minWidth="0">
+                                                                                <children>
+                                                                                    <Label text="OPTIONS" styleClass="h-tiny"/>
+                                                                                    <Label fx:id="previewOptions" text="–" styleClass="muted"/>
+                                                                                </children>
+                                                                            </VBox>
+                                                                            <VBox spacing="3" minWidth="0">
+                                                                                <children>
+                                                                                    <Label text="COMMISSION" styleClass="h-tiny" minWidth="-Infinity"/>
+                                                                                    <Label fx:id="previewCommission" text="–" styleClass="muted"/>
+                                                                                </children>
+                                                                            </VBox>
+                                                                            <VBox spacing="3" minWidth="0">
+                                                                                <children>
+                                                                                    <Label text="PARTICIPANTS" styleClass="h-tiny"/>
+                                                                                    <Label fx:id="previewParticipants" text="–" styleClass="num"/>
+                                                                                </children>
+                                                                            </VBox>
+                                                                        </children>
+                                                                    </HBox>
+                                                                </children>
+                                                            </VBox>
+                                                        </children>
+                                                    </VBox>
+                                                </children>
+                                            </VBox>
 
-                                        <!-- EventsScreen.buildEventPanel() -->
-                                        <VBox styleClass="panel" minWidth="0" HBox.hgrow="ALWAYS">
-                                            <children>
-                                                <HBox fx:id="titleRow" spacing="8" alignment="CENTER_LEFT"
-                                                      styleClass="panel-head">
-                                                    <children>
-                                                        <Label fx:id="title" text="No event selected" styleClass="h-panel"/>
-                                                        <Label fx:id="number" text="#01" styleClass="mono, faint"/>
-                                                        <Label fx:id="statusSlot" text="Active" styleClass="pill, ok"/>
-                                                        <Region HBox.hgrow="ALWAYS"/>
-                                                        <Button fx:id="closeEvent" text="Close event…"
-                                                                styleClass="danger, small"/>
-                                                    </children>
-                                                </HBox>
+                                            <!-- EventsScreen.buildEventPanel(): two ladders
+                                                 wide, since what is inside it scrolls. -->
+                                            <VBox styleClass="panel" minWidth="610" HBox.hgrow="ALWAYS">
+                                                <children>
+                                                    <HBox fx:id="titleRow" spacing="8" alignment="CENTER_LEFT"
+                                                          styleClass="panel-head">
+                                                        <children>
+                                                            <Label fx:id="title" text="No event selected" styleClass="h-panel"/>
+                                                            <Label fx:id="number" text="#01" styleClass="mono, faint"/>
+                                                            <Label fx:id="statusSlot" text="Active" styleClass="pill, ok"/>
+                                                            <Region HBox.hgrow="ALWAYS"/>
+                                                            <Button fx:id="closeEvent" text="Close event…"
+                                                                    styleClass="danger, small"/>
+                                                        </children>
+                                                    </HBox>
 
-                                                <ScrollPane fitToWidth="true" hbarPolicy="NEVER" VBox.vgrow="ALWAYS">
-                                                    <content>
-                                                        <VBox spacing="12" styleClass="panel-body">
-                                                            <children>
+                                                    <ScrollPane fitToWidth="true" hbarPolicy="NEVER" VBox.vgrow="ALWAYS">
+                                                        <content>
+                                                            <VBox spacing="12" styleClass="panel-body">
+                                                                <children>
 
-                                                                <!-- LmsrPane / OrderBookPane are swapped in here per event.
-                                                                     One LMSR card is drawn out so the panel has a shape. -->
-                                                                <StackPane fx:id="market" alignment="TOP_LEFT">
-                                                                    <children>
-                                                                        <HBox spacing="10">
-                                                                            <children>
-                                                                                <VBox styleClass="opt-card" HBox.hgrow="ALWAYS">
-                                                                                    <children>
-                                                                                        <HBox spacing="8" alignment="CENTER_LEFT" styleClass="opt-head">
-                                                                                            <children>
-                                                                                                <Label text="Option A" styleClass="opt-name"/>
-                                                                                                <Region HBox.hgrow="ALWAYS"/>
-                                                                                                <Label text="0.52" styleClass="opt-price"/>
-                                                                                            </children>
-                                                                                        </HBox>
-                                                                                        <VBox spacing="8" styleClass="opt-body">
-                                                                                            <children>
-                                                                                                <StackPane styleClass="meter" alignment="CENTER_LEFT">
-                                                                                                    <children>
-                                                                                                        <Region styleClass="meter-fill" prefWidth="120"/>
-                                                                                                    </children>
-                                                                                                </StackPane>
-                                                                                                <HBox spacing="8" alignment="CENTER_LEFT">
-                                                                                                    <children>
-                                                                                                        <Label text="Shares" styleClass="kv-key"/>
-                                                                                                        <Region HBox.hgrow="ALWAYS"/>
-                                                                                                        <Label text="150" styleClass="kv-val"/>
-                                                                                                    </children>
-                                                                                                </HBox>
-                                                                                            </children>
-                                                                                        </VBox>
-                                                                                        <HBox spacing="6" alignment="CENTER_LEFT" styleClass="opt-foot">
-                                                                                            <children>
-                                                                                                <TextField text="100" styleClass="mini" prefWidth="80"/>
-                                                                                                <Region HBox.hgrow="ALWAYS"/>
-                                                                                                <Button text="Buy" styleClass="buy, compact"/>
-                                                                                            </children>
-                                                                                        </HBox>
-                                                                                    </children>
-                                                                                </VBox>
-                                                                                <VBox styleClass="opt-card" HBox.hgrow="ALWAYS">
-                                                                                    <children>
-                                                                                        <HBox spacing="8" alignment="CENTER_LEFT" styleClass="opt-head">
-                                                                                            <children>
-                                                                                                <Label text="Option B" styleClass="opt-name"/>
-                                                                                                <Region HBox.hgrow="ALWAYS"/>
-                                                                                                <Label text="0.48" styleClass="opt-price"/>
-                                                                                            </children>
-                                                                                        </HBox>
-                                                                                        <VBox spacing="8" styleClass="opt-body">
-                                                                                            <children>
-                                                                                                <StackPane styleClass="meter" alignment="CENTER_LEFT">
-                                                                                                    <children>
-                                                                                                        <Region styleClass="meter-fill, other" prefWidth="100"/>
-                                                                                                    </children>
-                                                                                                </StackPane>
-                                                                                                <HBox spacing="8" alignment="CENTER_LEFT">
-                                                                                                    <children>
-                                                                                                        <Label text="Shares" styleClass="kv-key"/>
-                                                                                                        <Region HBox.hgrow="ALWAYS"/>
-                                                                                                        <Label text="120" styleClass="kv-val"/>
-                                                                                                    </children>
-                                                                                                </HBox>
-                                                                                            </children>
-                                                                                        </VBox>
-                                                                                        <HBox spacing="6" alignment="CENTER_LEFT" styleClass="opt-foot">
-                                                                                            <children>
-                                                                                                <TextField text="100" styleClass="mini" prefWidth="80"/>
-                                                                                                <Region HBox.hgrow="ALWAYS"/>
-                                                                                                <Button text="Buy" styleClass="buy, compact"/>
-                                                                                            </children>
-                                                                                        </HBox>
-                                                                                    </children>
-                                                                                </VBox>
-                                                                            </children>
-                                                                        </HBox>
-                                                                    </children>
-                                                                </StackPane>
+                                                                    <!-- LmsrPane / OrderBookPane are swapped in here per event.
+                                                                         One LMSR card is drawn out so the panel has a shape. -->
+                                                                    <StackPane fx:id="market" alignment="TOP_LEFT">
+                                                                        <children>
+                                                                            <HBox spacing="10">
+                                                                                <children>
+                                                                                    <VBox styleClass="opt-card" minWidth="240" HBox.hgrow="ALWAYS">
+                                                                                        <children>
+                                                                                            <HBox spacing="8" alignment="CENTER_LEFT" styleClass="opt-head">
+                                                                                                <children>
+                                                                                                    <Label text="Option A" styleClass="opt-name"/>
+                                                                                                    <Region HBox.hgrow="ALWAYS"/>
+                                                                                                    <Label text="0.52" styleClass="opt-price"/>
+                                                                                                </children>
+                                                                                            </HBox>
+                                                                                            <VBox spacing="8" styleClass="opt-body">
+                                                                                                <children>
+                                                                                                    <StackPane styleClass="meter" alignment="CENTER_LEFT">
+                                                                                                        <children>
+                                                                                                            <Region styleClass="meter-fill" prefWidth="120"/>
+                                                                                                        </children>
+                                                                                                    </StackPane>
+                                                                                                    <HBox spacing="8" alignment="CENTER_LEFT">
+                                                                                                        <children>
+                                                                                                            <Label text="Shares" styleClass="kv-key"/>
+                                                                                                            <Region HBox.hgrow="ALWAYS"/>
+                                                                                                            <Label text="150" styleClass="kv-val"/>
+                                                                                                        </children>
+                                                                                                    </HBox>
+                                                                                                </children>
+                                                                                            </VBox>
+                                                                                            <HBox spacing="6" alignment="CENTER_LEFT" styleClass="opt-foot">
+                                                                                                <children>
+                                                                                                    <TextField text="100" styleClass="mini" prefWidth="80"/>
+                                                                                                    <Region HBox.hgrow="ALWAYS"/>
+                                                                                                    <Button text="Buy" styleClass="buy, compact" minWidth="-Infinity"/>
+                                                                                                </children>
+                                                                                            </HBox>
+                                                                                        </children>
+                                                                                    </VBox>
+                                                                                    <VBox styleClass="opt-card" minWidth="240" HBox.hgrow="ALWAYS">
+                                                                                        <children>
+                                                                                            <HBox spacing="8" alignment="CENTER_LEFT" styleClass="opt-head">
+                                                                                                <children>
+                                                                                                    <Label text="Option B" styleClass="opt-name"/>
+                                                                                                    <Region HBox.hgrow="ALWAYS"/>
+                                                                                                    <Label text="0.48" styleClass="opt-price"/>
+                                                                                                </children>
+                                                                                            </HBox>
+                                                                                            <VBox spacing="8" styleClass="opt-body">
+                                                                                                <children>
+                                                                                                    <StackPane styleClass="meter" alignment="CENTER_LEFT">
+                                                                                                        <children>
+                                                                                                            <Region styleClass="meter-fill, other" prefWidth="100"/>
+                                                                                                        </children>
+                                                                                                    </StackPane>
+                                                                                                    <HBox spacing="8" alignment="CENTER_LEFT">
+                                                                                                        <children>
+                                                                                                            <Label text="Shares" styleClass="kv-key"/>
+                                                                                                            <Region HBox.hgrow="ALWAYS"/>
+                                                                                                            <Label text="120" styleClass="kv-val"/>
+                                                                                                        </children>
+                                                                                                    </HBox>
+                                                                                                </children>
+                                                                                            </VBox>
+                                                                                            <HBox spacing="6" alignment="CENTER_LEFT" styleClass="opt-foot">
+                                                                                                <children>
+                                                                                                    <TextField text="100" styleClass="mini" prefWidth="80"/>
+                                                                                                    <Region HBox.hgrow="ALWAYS"/>
+                                                                                                    <Button text="Buy" styleClass="buy, compact" minWidth="-Infinity"/>
+                                                                                                </children>
+                                                                                            </HBox>
+                                                                                        </children>
+                                                                                    </VBox>
+                                                                                </children>
+                                                                            </HBox>
+                                                                        </children>
+                                                                    </StackPane>
 
-                                                                <!-- chartPanel -->
-                                                                <VBox styleClass="framed">
-                                                                    <children>
-                                                                        <HBox spacing="10" alignment="CENTER_LEFT">
-                                                                            <padding><Insets top="8" right="10" bottom="6" left="10"/></padding>
-                                                                            <children>
-                                                                                <Label text="OPTION PRICE AFTER EACH TRANSACTION" styleClass="h-tiny"/>
-                                                                                <HBox fx:id="chartLegend" spacing="12" alignment="CENTER_LEFT">
-                                                                                    <children>
-                                                                                        <HBox spacing="5" alignment="CENTER_LEFT">
-                                                                                            <children>
-                                                                                                <Circle radius="3.5"/>
-                                                                                                <Label text="Option A" styleClass="faint"/>
-                                                                                            </children>
-                                                                                        </HBox>
-                                                                                        <HBox spacing="5" alignment="CENTER_LEFT">
-                                                                                            <children>
-                                                                                                <Circle radius="3.5"/>
-                                                                                                <Label text="Option B" styleClass="faint"/>
-                                                                                            </children>
-                                                                                        </HBox>
-                                                                                    </children>
-                                                                                </HBox>
-                                                                                <Region HBox.hgrow="ALWAYS"/>
-                                                                                <Label fx:id="tradeCount" text="3 trades" styleClass="note"/>
-                                                                            </children>
-                                                                        </HBox>
-                                                                        <!-- SparkChart chart = new SparkChart(150) -->
-                                                                        <Pane fx:id="chart" styleClass="chart-slot"
-                                                                              minHeight="150" prefHeight="150"/>
-                                                                    </children>
-                                                                </VBox>
+                                                                    <!-- chartPanel -->
+                                                                    <VBox styleClass="framed">
+                                                                        <children>
+                                                                            <HBox spacing="10" alignment="CENTER_LEFT">
+                                                                                <padding><Insets top="8" right="10" bottom="6" left="10"/></padding>
+                                                                                <children>
+                                                                                    <Label text="OPTION PRICE AFTER EACH TRANSACTION" styleClass="h-tiny"/>
+                                                                                    <HBox fx:id="chartLegend" spacing="12" alignment="CENTER_LEFT">
+                                                                                        <children>
+                                                                                            <HBox spacing="5" alignment="CENTER_LEFT">
+                                                                                                <children>
+                                                                                                    <Circle radius="3.5"/>
+                                                                                                    <Label text="Option A" styleClass="faint"/>
+                                                                                                </children>
+                                                                                            </HBox>
+                                                                                            <HBox spacing="5" alignment="CENTER_LEFT">
+                                                                                                <children>
+                                                                                                    <Circle radius="3.5"/>
+                                                                                                    <Label text="Option B" styleClass="faint"/>
+                                                                                                </children>
+                                                                                            </HBox>
+                                                                                        </children>
+                                                                                    </HBox>
+                                                                                    <Region HBox.hgrow="ALWAYS"/>
+                                                                                    <Label fx:id="tradeCount" text="3 trades" styleClass="note"/>
+                                                                                </children>
+                                                                            </HBox>
+                                                                            <!-- SparkChart chart = new SparkChart(150) -->
+                                                                            <Pane fx:id="chart" styleClass="chart-slot"
+                                                                                  minHeight="150" prefHeight="150"/>
+                                                                        </children>
+                                                                    </VBox>
 
-                                                                <!-- participationPanel -->
-                                                                <VBox styleClass="framed">
-                                                                    <children>
-                                                                        <HBox spacing="8" alignment="CENTER_LEFT">
-                                                                            <padding><Insets top="8" right="10" bottom="6" left="10"/></padding>
-                                                                            <children>
-                                                                                <Label text="PARTICIPATIONS" styleClass="h-tiny"/>
-                                                                                <Label fx:id="participationCount" text="0" styleClass="pill, count"/>
-                                                                            </children>
-                                                                        </HBox>
-                                                                        <TableView fx:id="participations" minHeight="120" prefHeight="212"
-                                                                                   VBox.vgrow="ALWAYS">
-                                                                            <columns>
-                                                                                <TableColumn text="#" prefWidth="44" sortable="false"/>
-                                                                                <TableColumn text="USER" prefWidth="110" sortable="false"/>
-                                                                                <TableColumn text="OPTION" prefWidth="130" sortable="false"/>
-                                                                                <TableColumn text="SHARES" prefWidth="74" sortable="false"/>
-                                                                                <TableColumn text="PRICE" prefWidth="66" sortable="false"/>
-                                                                                <TableColumn text="COMM." prefWidth="74" sortable="false"/>
-                                                                                <TableColumn text="TOTAL" prefWidth="86" sortable="false"/>
-                                                                            </columns>
-                                                                        </TableView>
-                                                                        <HBox spacing="8" alignment="CENTER_LEFT" styleClass="footer-strip">
-                                                                            <children>
-                                                                                <Label text="MM BALANCE" styleClass="h-tiny"/>
-                                                                                <Label fx:id="accountBalance" text="–" styleClass="num"/>
-                                                                                <Region minWidth="10" prefWidth="10"/>
-                                                                                <Label text="COMMISSION" styleClass="h-tiny"/>
-                                                                                <Label fx:id="commissionCollected" text="–" styleClass="num"/>
-                                                                                <Region HBox.hgrow="ALWAYS"/>
-                                                                                <Label fx:id="methodNote" text="b = 100" styleClass="note"/>
-                                                                            </children>
-                                                                        </HBox>
-                                                                    </children>
-                                                                </VBox>
-                                                            </children>
-                                                        </VBox>
-                                                    </content>
-                                                </ScrollPane>
-                                            </children>
-                                        </VBox>
-                                    </children>
-                                </HBox>
-                            </children>
-                        </StackPane>
+                                                                    <!-- participationPanel -->
+                                                                    <VBox styleClass="framed">
+                                                                        <children>
+                                                                            <HBox spacing="8" alignment="CENTER_LEFT">
+                                                                                <padding><Insets top="8" right="10" bottom="6" left="10"/></padding>
+                                                                                <children>
+                                                                                    <Label text="PARTICIPATIONS" styleClass="h-tiny"/>
+                                                                                    <Label fx:id="participationCount" text="0" styleClass="pill, count"/>
+                                                                                </children>
+                                                                            </HBox>
+                                                                            <TableView fx:id="participations" minHeight="120" prefHeight="212"
+                                                                                       VBox.vgrow="ALWAYS">
+                                                                                <columns>
+                                                                                    <TableColumn text="#" prefWidth="44" sortable="false"/>
+                                                                                    <TableColumn text="USER" prefWidth="110" sortable="false"/>
+                                                                                    <TableColumn text="OPTION" prefWidth="130" sortable="false"/>
+                                                                                    <TableColumn text="SHARES" prefWidth="74" sortable="false"/>
+                                                                                    <TableColumn text="PRICE" prefWidth="66" sortable="false"/>
+                                                                                    <TableColumn text="COMM." prefWidth="74" sortable="false"/>
+                                                                                    <TableColumn text="TOTAL" prefWidth="86" sortable="false"/>
+                                                                                </columns>
+                                                                            </TableView>
+                                                                            <HBox spacing="8" alignment="CENTER_LEFT" styleClass="footer-strip">
+                                                                                <children>
+                                                                                    <Label text="MM BALANCE" styleClass="h-tiny"/>
+                                                                                    <Label fx:id="accountBalance" text="–" styleClass="num"/>
+                                                                                    <Region minWidth="10" prefWidth="10"/>
+                                                                                    <Label text="COMMISSION" styleClass="h-tiny" minWidth="-Infinity"/>
+                                                                                    <Label fx:id="commissionCollected" text="–" styleClass="num"/>
+                                                                                    <Region HBox.hgrow="ALWAYS"/>
+                                                                                    <Label fx:id="methodNote" text="b = 100" styleClass="note"/>
+                                                                                </children>
+                                                                            </HBox>
+                                                                        </children>
+                                                                    </VBox>
+                                                                </children>
+                                                            </VBox>
+                                                        </content>
+                                                    </ScrollPane>
+                                                </children>
+                                            </VBox>
+                                        </children>
+                                    </HBox>
+                                </children>
+                            </StackPane>
+                        </ScrollPane>
                     </content>
                 </Tab>
 
@@ -412,345 +426,348 @@
                      ============================================================ -->
                 <Tab fx:id="usersTab" text="Users" closable="false">
                     <content>
-                        <StackPane styleClass="workspace">
-                            <children>
-                                <HBox spacing="14">
-                                    <children>
+                        <ScrollPane fitToWidth="true" fitToHeight="true"
+                                    styleClass="workspace-scroll">
+                            <StackPane styleClass="workspace">
+                                <children>
+                                    <HBox spacing="14" minHeight="470">
+                                        <children>
 
-                                        <!-- UsersScreen.buildUserList() -->
-                                        <VBox styleClass="panel" minWidth="300" prefWidth="300" maxWidth="300">
-                                            <children>
-                                                <HBox spacing="8" alignment="CENTER_LEFT" styleClass="panel-head">
-                                                    <children>
-                                                        <Label text="USERS" styleClass="h-caps"/>
-                                                        <Region HBox.hgrow="ALWAYS"/>
-                                                        <Label fx:id="userCount" text="0" styleClass="pill, count"/>
-                                                    </children>
-                                                </HBox>
-                                                <VBox VBox.vgrow="ALWAYS">
-                                                    <children>
-                                                        <TableView fx:id="users" VBox.vgrow="ALWAYS">
-                                                            <columns>
-                                                                <TableColumn text="USER" prefWidth="150" sortable="false"/>
-                                                                <TableColumn text="BALANCE" prefWidth="110" sortable="false"/>
-                                                            </columns>
-                                                        </TableView>
-                                                        <HBox spacing="8" alignment="CENTER_LEFT" styleClass="footer-strip">
-                                                            <children>
-                                                                <Label text="TOTAL HELD" styleClass="h-tiny"/>
-                                                                <Region HBox.hgrow="ALWAYS"/>
-                                                                <Label fx:id="totalHeld" text="–" styleClass="num"/>
-                                                            </children>
-                                                        </HBox>
-                                                    </children>
-                                                </VBox>
-                                            </children>
-                                        </VBox>
+                                            <!-- UsersScreen.buildUserList() -->
+                                            <VBox styleClass="panel" minWidth="300" prefWidth="300" maxWidth="300">
+                                                <children>
+                                                    <HBox spacing="8" alignment="CENTER_LEFT" styleClass="panel-head">
+                                                        <children>
+                                                            <Label text="USERS" styleClass="h-caps"/>
+                                                            <Region HBox.hgrow="ALWAYS"/>
+                                                            <Label fx:id="userCount" text="0" styleClass="pill, count"/>
+                                                        </children>
+                                                    </HBox>
+                                                    <VBox VBox.vgrow="ALWAYS">
+                                                        <children>
+                                                            <TableView fx:id="users" VBox.vgrow="ALWAYS">
+                                                                <columns>
+                                                                    <TableColumn text="USER" prefWidth="150" sortable="false"/>
+                                                                    <TableColumn text="BALANCE" prefWidth="110" sortable="false"/>
+                                                                </columns>
+                                                            </TableView>
+                                                            <HBox spacing="8" alignment="CENTER_LEFT" styleClass="footer-strip">
+                                                                <children>
+                                                                    <Label text="TOTAL HELD" styleClass="h-tiny"/>
+                                                                    <Region HBox.hgrow="ALWAYS"/>
+                                                                    <Label fx:id="totalHeld" text="–" styleClass="num"/>
+                                                                </children>
+                                                            </HBox>
+                                                        </children>
+                                                    </VBox>
+                                                </children>
+                                            </VBox>
 
-                                        <!-- UsersScreen.buildAccount() -->
-                                        <ScrollPane fitToWidth="true" hbarPolicy="NEVER"
-                                                    minWidth="0" HBox.hgrow="ALWAYS">
-                                            <content>
-                                                <VBox spacing="12">
-                                                    <children>
+                                            <!-- UsersScreen.buildAccount() -->
+                                            <ScrollPane fitToWidth="true" hbarPolicy="NEVER"
+                                                        minWidth="592" HBox.hgrow="ALWAYS">
+                                                <content>
+                                                    <VBox spacing="12">
+                                                        <children>
 
-                                                        <!-- accountHeader() -->
-                                                        <VBox>
-                                                            <children>
-                                                                <HBox spacing="12" alignment="CENTER_LEFT" styleClass="panel">
-                                                                    <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
-                                                                    <children>
-                                                                        <VBox spacing="4" minWidth="0" HBox.hgrow="ALWAYS">
-                                                                            <children>
-                                                                                <HBox spacing="8" alignment="BASELINE_LEFT">
-                                                                                    <children>
-                                                                                        <Label fx:id="name" text="–" styleClass="h-panel"/>
-                                                                                        <Label fx:id="ownerOf" text="Owner of 1" styleClass="pill, mark"/>
-                                                                                    </children>
-                                                                                </HBox>
-                                                                                <Label fx:id="summary" text="" styleClass="faint"/>
-                                                                            </children>
-                                                                        </VBox>
-                                                                        <VBox spacing="6" styleClass="card" minWidth="170">
-                                                                            <children>
-                                                                                <Label text="ACCOUNT BALANCE" styleClass="h-tiny"/>
-                                                                                <Label fx:id="balance" text="–" styleClass="num-big"/>
-                                                                            </children>
-                                                                        </VBox>
-                                                                        <VBox spacing="6" styleClass="card" minWidth="210">
-                                                                            <children>
-                                                                                <Label text="POTENTIAL OUTCOME" styleClass="h-tiny"/>
-                                                                                <HBox spacing="8" alignment="CENTER_LEFT">
-                                                                                    <children>
-                                                                                        <Label fx:id="potential" text="–" styleClass="num-big"/>
-                                                                                        <Label fx:id="potentialDelta" text="" styleClass="mono"/>
-                                                                                    </children>
-                                                                                </HBox>
-                                                                                <Label text="If every open trade wins" styleClass="note"/>
-                                                                            </children>
-                                                                        </VBox>
-                                                                    </children>
-                                                                </HBox>
-                                                            </children>
-                                                        </VBox>
+                                                            <!-- accountHeader() -->
+                                                            <VBox>
+                                                                <children>
+                                                                    <HBox spacing="12" alignment="CENTER_LEFT" styleClass="panel">
+                                                                        <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+                                                                        <children>
+                                                                            <VBox spacing="4" minWidth="150" HBox.hgrow="ALWAYS">
+                                                                                <children>
+                                                                                    <HBox spacing="8" alignment="BASELINE_LEFT">
+                                                                                        <children>
+                                                                                            <Label fx:id="name" text="–" styleClass="h-panel"/>
+                                                                                            <Label fx:id="ownerOf" text="Owner of 1" styleClass="pill, mark"/>
+                                                                                        </children>
+                                                                                    </HBox>
+                                                                                    <Label fx:id="summary" text="" styleClass="faint"/>
+                                                                                </children>
+                                                                            </VBox>
+                                                                            <VBox spacing="6" styleClass="card" minWidth="170">
+                                                                                <children>
+                                                                                    <Label text="ACCOUNT BALANCE" styleClass="h-tiny"/>
+                                                                                    <Label fx:id="balance" text="–" styleClass="num-big"/>
+                                                                                </children>
+                                                                            </VBox>
+                                                                            <VBox spacing="6" styleClass="card" minWidth="210">
+                                                                                <children>
+                                                                                    <Label text="POTENTIAL OUTCOME" styleClass="h-tiny"/>
+                                                                                    <HBox spacing="8" alignment="CENTER_LEFT">
+                                                                                        <children>
+                                                                                            <Label fx:id="potential" text="–" styleClass="num-big"/>
+                                                                                            <Label fx:id="potentialDelta" text="" styleClass="mono"/>
+                                                                                        </children>
+                                                                                    </HBox>
+                                                                                    <Label text="If every open trade wins" styleClass="note"/>
+                                                                                </children>
+                                                                            </VBox>
+                                                                        </children>
+                                                                    </HBox>
+                                                                </children>
+                                                            </VBox>
 
-                                                        <!-- balancePanel() -->
-                                                        <VBox styleClass="framed">
-                                                            <children>
-                                                                <HBox spacing="10" alignment="CENTER_LEFT">
-                                                                    <padding><Insets top="8" right="10" bottom="6" left="10"/></padding>
-                                                                    <children>
-                                                                        <Label text="ACCOUNT BALANCE AFTER EACH CHANGE" styleClass="h-tiny"/>
-                                                                        <HBox spacing="5" alignment="CENTER_LEFT">
-                                                                            <children>
-                                                                                <Circle radius="3.5"/>
-                                                                                <Label text="balance" styleClass="faint"/>
-                                                                            </children>
-                                                                        </HBox>
-                                                                        <Region HBox.hgrow="ALWAYS"/>
-                                                                        <Label fx:id="balanceMoves" text="2 changes" styleClass="note"/>
-                                                                    </children>
-                                                                </HBox>
-                                                                <!-- SparkChart balanceChart = new SparkChart(150) -->
-                                                                <Pane fx:id="balanceChart" styleClass="chart-slot"
-                                                                      minHeight="150" prefHeight="150"/>
-                                                            </children>
-                                                        </VBox>
+                                                            <!-- balancePanel() -->
+                                                            <VBox styleClass="framed">
+                                                                <children>
+                                                                    <HBox spacing="10" alignment="CENTER_LEFT">
+                                                                        <padding><Insets top="8" right="10" bottom="6" left="10"/></padding>
+                                                                        <children>
+                                                                            <Label text="ACCOUNT BALANCE AFTER EACH CHANGE" styleClass="h-tiny"/>
+                                                                            <HBox spacing="5" alignment="CENTER_LEFT">
+                                                                                <children>
+                                                                                    <Circle radius="3.5"/>
+                                                                                    <Label text="balance" styleClass="faint"/>
+                                                                                </children>
+                                                                            </HBox>
+                                                                            <Region HBox.hgrow="ALWAYS"/>
+                                                                            <Label fx:id="balanceMoves" text="2 changes" styleClass="note"/>
+                                                                        </children>
+                                                                    </HBox>
+                                                                    <!-- SparkChart balanceChart = new SparkChart(150) -->
+                                                                    <Pane fx:id="balanceChart" styleClass="chart-slot"
+                                                                          minHeight="150" prefHeight="150"/>
+                                                                </children>
+                                                            </VBox>
 
-                                                        <!-- positionsPanel() -->
-                                                        <VBox styleClass="panel">
-                                                            <children>
-                                                                <HBox spacing="8" alignment="CENTER_LEFT" styleClass="panel-head">
-                                                                    <children>
-                                                                        <Label text="EVENTS: PARTICIPATION &amp; OWNERSHIP"
-                                                                               styleClass="h-caps"/>
-                                                                        <Region HBox.hgrow="ALWAYS"/>
-                                                                        <HBox spacing="6" alignment="CENTER_LEFT">
-                                                                            <children>
-                                                                                <Label text="ROLE" styleClass="h-tiny"/>
-                                                                                <ComboBox fx:id="roleFilter" value="All"
-                                                                                          minWidth="118" prefWidth="118">
-                                                                                    <items>
-                                                                                        <FXCollections fx:factory="observableArrayList">
-                                                                                            <String fx:value="All"/>
-                                                                                            <String fx:value="Owner"/>
-                                                                                            <String fx:value="Participant"/>
-                                                                                        </FXCollections>
-                                                                                    </items>
-                                                                                </ComboBox>
-                                                                            </children>
-                                                                        </HBox>
-                                                                    </children>
-                                                                </HBox>
-                                                                <VBox VBox.vgrow="ALWAYS">
-                                                                    <children>
-                                                                        <TableView fx:id="positions" minHeight="140" prefHeight="232"
-                                                                                   VBox.vgrow="ALWAYS">
-                                                                            <columns>
-                                                                                <TableColumn text="EVENT" prefWidth="130" sortable="false"/>
-                                                                                <TableColumn text="ROLE" prefWidth="92" sortable="false"/>
-                                                                                <TableColumn text="OPTION" prefWidth="120" sortable="false"/>
-                                                                                <TableColumn text="SHARES" prefWidth="68" sortable="false"/>
-                                                                                <TableColumn text="INVESTED" prefWidth="88" sortable="false"/>
-                                                                                <TableColumn text="VALUE" prefWidth="84" sortable="false"/>
-                                                                                <TableColumn text="IF WINS" prefWidth="84" sortable="false"/>
-                                                                                <TableColumn text="P/L" prefWidth="84" sortable="false"/>
-                                                                                <TableColumn text="STATUS" prefWidth="72" sortable="false"/>
-                                                                            </columns>
-                                                                        </TableView>
-                                                                    </children>
-                                                                </VBox>
-                                                            </children>
-                                                        </VBox>
+                                                            <!-- positionsPanel() -->
+                                                            <VBox styleClass="panel">
+                                                                <children>
+                                                                    <HBox spacing="8" alignment="CENTER_LEFT" styleClass="panel-head">
+                                                                        <children>
+                                                                            <Label text="EVENTS: PARTICIPATION &amp; OWNERSHIP"
+                                                                                   styleClass="h-caps"/>
+                                                                            <Region HBox.hgrow="ALWAYS"/>
+                                                                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                                                                <children>
+                                                                                    <Label text="ROLE" styleClass="h-tiny" minWidth="-Infinity"/>
+                                                                                    <ComboBox fx:id="roleFilter" value="All"
+                                                                                              minWidth="84" prefWidth="118">
+                                                                                        <items>
+                                                                                            <FXCollections fx:factory="observableArrayList">
+                                                                                                <String fx:value="All"/>
+                                                                                                <String fx:value="Owner"/>
+                                                                                                <String fx:value="Participant"/>
+                                                                                            </FXCollections>
+                                                                                        </items>
+                                                                                    </ComboBox>
+                                                                                </children>
+                                                                            </HBox>
+                                                                        </children>
+                                                                    </HBox>
+                                                                    <VBox VBox.vgrow="ALWAYS">
+                                                                        <children>
+                                                                            <TableView fx:id="positions" minHeight="140" prefHeight="232"
+                                                                                       VBox.vgrow="ALWAYS">
+                                                                                <columns>
+                                                                                    <TableColumn text="EVENT" prefWidth="130" sortable="false"/>
+                                                                                    <TableColumn text="ROLE" prefWidth="92" sortable="false"/>
+                                                                                    <TableColumn text="OPTION" prefWidth="120" sortable="false"/>
+                                                                                    <TableColumn text="SHARES" prefWidth="68" sortable="false"/>
+                                                                                    <TableColumn text="INVESTED" prefWidth="88" sortable="false"/>
+                                                                                    <TableColumn text="VALUE" prefWidth="84" sortable="false"/>
+                                                                                    <TableColumn text="IF WINS" prefWidth="84" sortable="false"/>
+                                                                                    <TableColumn text="P/L" prefWidth="84" sortable="false"/>
+                                                                                    <TableColumn text="STATUS" prefWidth="72" sortable="false"/>
+                                                                                </columns>
+                                                                            </TableView>
+                                                                        </children>
+                                                                    </VBox>
+                                                                </children>
+                                                            </VBox>
 
-                                                        <!-- barsPanel() -->
-                                                        <VBox styleClass="panel">
-                                                            <children>
-                                                                <HBox spacing="8" alignment="CENTER_LEFT" styleClass="panel-head">
-                                                                    <children>
-                                                                        <Label text="POSITION VALUE BY EVENT" styleClass="h-caps"/>
-                                                                        <Region HBox.hgrow="ALWAYS"/>
-                                                                        <HBox spacing="5" alignment="CENTER_LEFT">
-                                                                            <children>
-                                                                                <Circle radius="3.5"/>
-                                                                                <Label text="value now" styleClass="faint"/>
-                                                                            </children>
-                                                                        </HBox>
-                                                                        <HBox spacing="5" alignment="CENTER_LEFT">
-                                                                            <children>
-                                                                                <Circle radius="3.5"/>
-                                                                                <Label text="if that side wins" styleClass="faint"/>
-                                                                            </children>
-                                                                        </HBox>
-                                                                    </children>
-                                                                </HBox>
-                                                                <!-- bars: one track/fill pair per position, built in showBars() -->
-                                                                <VBox fx:id="bars" spacing="8" minHeight="90">
-                                                                    <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
-                                                                    <children>
-                                                                        <VBox spacing="4">
-                                                                            <children>
-                                                                                <HBox spacing="8" alignment="CENTER_LEFT">
-                                                                                    <children>
-                                                                                        <Label text="Event · Option A" styleClass="kv-key"/>
-                                                                                        <Region HBox.hgrow="ALWAYS"/>
-                                                                                        <Label text="52.00" styleClass="kv-val"/>
-                                                                                    </children>
-                                                                                </HBox>
-                                                                                <StackPane styleClass="bar-track" alignment="CENTER_LEFT">
-                                                                                    <children>
-                                                                                        <Region styleClass="bar-fill" prefWidth="220"/>
-                                                                                    </children>
-                                                                                </StackPane>
-                                                                            </children>
-                                                                        </VBox>
-                                                                    </children>
-                                                                </VBox>
-                                                            </children>
-                                                        </VBox>
+                                                            <!-- barsPanel() -->
+                                                            <VBox styleClass="panel">
+                                                                <children>
+                                                                    <HBox spacing="8" alignment="CENTER_LEFT" styleClass="panel-head">
+                                                                        <children>
+                                                                            <Label text="POSITION VALUE BY EVENT" styleClass="h-caps"/>
+                                                                            <Region HBox.hgrow="ALWAYS"/>
+                                                                            <HBox spacing="5" alignment="CENTER_LEFT">
+                                                                                <children>
+                                                                                    <Circle radius="3.5"/>
+                                                                                    <Label text="value now" styleClass="faint"/>
+                                                                                </children>
+                                                                            </HBox>
+                                                                            <HBox spacing="5" alignment="CENTER_LEFT">
+                                                                                <children>
+                                                                                    <Circle radius="3.5"/>
+                                                                                    <Label text="if that side wins" styleClass="faint"/>
+                                                                                </children>
+                                                                            </HBox>
+                                                                        </children>
+                                                                    </HBox>
+                                                                    <!-- bars: one track/fill pair per position, built in showBars() -->
+                                                                    <VBox fx:id="bars" spacing="8" minHeight="90">
+                                                                        <padding><Insets top="12" right="12" bottom="12" left="12"/></padding>
+                                                                        <children>
+                                                                            <VBox spacing="4">
+                                                                                <children>
+                                                                                    <HBox spacing="8" alignment="CENTER_LEFT">
+                                                                                        <children>
+                                                                                            <Label text="Event · Option A" styleClass="kv-key"/>
+                                                                                            <Region HBox.hgrow="ALWAYS"/>
+                                                                                            <Label text="52.00" styleClass="kv-val"/>
+                                                                                        </children>
+                                                                                    </HBox>
+                                                                                    <StackPane styleClass="bar-track" alignment="CENTER_LEFT">
+                                                                                        <children>
+                                                                                            <Region styleClass="bar-fill" prefWidth="220"/>
+                                                                                        </children>
+                                                                                    </StackPane>
+                                                                                </children>
+                                                                            </VBox>
+                                                                        </children>
+                                                                    </VBox>
+                                                                </children>
+                                                            </VBox>
 
-                                                        <!-- tradePanel() -->
-                                                        <VBox styleClass="panel">
-                                                            <children>
-                                                                <HBox spacing="8" alignment="CENTER_LEFT" styleClass="panel-head">
-                                                                    <children>
-                                                                        <Label fx:id="tradeTitle" text="No event selected"
-                                                                               styleClass="h-section"/>
-                                                                        <Label fx:id="tradeStatus" text="Active" styleClass="pill, ok"/>
-                                                                        <Region HBox.hgrow="ALWAYS"/>
-                                                                        <Button text="Close event…" styleClass="danger, small"/>
-                                                                    </children>
-                                                                </HBox>
+                                                            <!-- tradePanel() -->
+                                                            <VBox styleClass="panel">
+                                                                <children>
+                                                                    <HBox spacing="8" alignment="CENTER_LEFT" styleClass="panel-head">
+                                                                        <children>
+                                                                            <Label fx:id="tradeTitle" text="No event selected"
+                                                                                   styleClass="h-section"/>
+                                                                            <Label fx:id="tradeStatus" text="Active" styleClass="pill, ok"/>
+                                                                            <Region HBox.hgrow="ALWAYS"/>
+                                                                            <Button text="Close event…" styleClass="danger, small"/>
+                                                                        </children>
+                                                                    </HBox>
 
-                                                                <HBox spacing="12" alignment="TOP_LEFT" styleClass="panel-body">
-                                                                    <children>
+                                                                    <HBox spacing="12" alignment="TOP_LEFT" styleClass="panel-body">
+                                                                        <children>
 
-                                                                        <VBox spacing="10" minWidth="0" HBox.hgrow="ALWAYS">
-                                                                            <children>
-                                                                                <Label fx:id="tradeDescription" text="" styleClass="muted"
-                                                                                       wrapText="true"/>
-                                                                                <!-- optionRows[0..1]: filled per event -->
-                                                                                <HBox spacing="10">
-                                                                                    <children>
-                                                                                        <HBox spacing="8" alignment="CENTER_LEFT"
-                                                                                              styleClass="card" HBox.hgrow="ALWAYS">
-                                                                                            <children>
-                                                                                                <Label text="Option A" styleClass="kv-key"/>
-                                                                                                <Region HBox.hgrow="ALWAYS"/>
-                                                                                                <Label text="0.52" styleClass="kv-val"/>
-                                                                                            </children>
-                                                                                        </HBox>
-                                                                                        <HBox spacing="8" alignment="CENTER_LEFT"
-                                                                                              styleClass="card" HBox.hgrow="ALWAYS">
-                                                                                            <children>
-                                                                                                <Label text="Option B" styleClass="kv-key"/>
-                                                                                                <Region HBox.hgrow="ALWAYS"/>
-                                                                                                <Label text="0.48" styleClass="kv-val"/>
-                                                                                            </children>
-                                                                                        </HBox>
-                                                                                    </children>
-                                                                                </HBox>
-                                                                                <HBox spacing="18">
-                                                                                    <children>
-                                                                                        <VBox spacing="3" minWidth="0">
-                                                                                            <children>
-                                                                                                <Label text="COMMISSION" styleClass="h-tiny"/>
-                                                                                                <Label fx:id="tradeCommission" text="–" styleClass="kv-val"/>
-                                                                                            </children>
-                                                                                        </VBox>
-                                                                                        <VBox spacing="3" minWidth="0">
-                                                                                            <children>
-                                                                                                <Label text="MARKET METHOD" styleClass="h-tiny"/>
-                                                                                                <Label fx:id="tradeMethod" text="–" styleClass="kv-val"/>
-                                                                                            </children>
-                                                                                        </VBox>
-                                                                                        <VBox spacing="3" minWidth="0">
-                                                                                            <children>
-                                                                                                <Label text="EVENT ACCOUNT" styleClass="h-tiny"/>
-                                                                                                <Label fx:id="tradeAccount" text="–" styleClass="kv-val"/>
-                                                                                            </children>
-                                                                                        </VBox>
-                                                                                    </children>
-                                                                                </HBox>
-                                                                            </children>
-                                                                        </VBox>
+                                                                            <VBox spacing="10" minWidth="0" HBox.hgrow="ALWAYS">
+                                                                                <children>
+                                                                                    <Label fx:id="tradeDescription" text="" styleClass="muted"
+                                                                                           wrapText="true"/>
+                                                                                    <!-- optionRows[0..1]: filled per event -->
+                                                                                    <HBox spacing="10">
+                                                                                        <children>
+                                                                                            <HBox spacing="8" alignment="CENTER_LEFT"
+                                                                                                  styleClass="card" HBox.hgrow="ALWAYS">
+                                                                                                <children>
+                                                                                                    <Label text="Option A" styleClass="kv-key"/>
+                                                                                                    <Region HBox.hgrow="ALWAYS"/>
+                                                                                                    <Label text="0.52" styleClass="kv-val"/>
+                                                                                                </children>
+                                                                                            </HBox>
+                                                                                            <HBox spacing="8" alignment="CENTER_LEFT"
+                                                                                                  styleClass="card" HBox.hgrow="ALWAYS">
+                                                                                                <children>
+                                                                                                    <Label text="Option B" styleClass="kv-key"/>
+                                                                                                    <Region HBox.hgrow="ALWAYS"/>
+                                                                                                    <Label text="0.48" styleClass="kv-val"/>
+                                                                                                </children>
+                                                                                            </HBox>
+                                                                                        </children>
+                                                                                    </HBox>
+                                                                                    <HBox spacing="18">
+                                                                                        <children>
+                                                                                            <VBox spacing="3" minWidth="0">
+                                                                                                <children>
+                                                                                                    <Label text="COMMISSION" styleClass="h-tiny" minWidth="-Infinity"/>
+                                                                                                    <Label fx:id="tradeCommission" text="–" styleClass="kv-val"/>
+                                                                                                </children>
+                                                                                            </VBox>
+                                                                                            <VBox spacing="3" minWidth="0">
+                                                                                                <children>
+                                                                                                    <Label text="MARKET METHOD" styleClass="h-tiny"/>
+                                                                                                    <Label fx:id="tradeMethod" text="–" styleClass="kv-val"/>
+                                                                                                </children>
+                                                                                            </VBox>
+                                                                                            <VBox spacing="3" minWidth="0">
+                                                                                                <children>
+                                                                                                    <Label text="EVENT ACCOUNT" styleClass="h-tiny"/>
+                                                                                                    <Label fx:id="tradeAccount" text="–" styleClass="kv-val"/>
+                                                                                                </children>
+                                                                                            </VBox>
+                                                                                        </children>
+                                                                                    </HBox>
+                                                                                </children>
+                                                                            </VBox>
 
-                                                                        <VBox spacing="6" styleClass="card"
-                                                                              minWidth="260" prefWidth="260" maxWidth="260">
-                                                                            <children>
-                                                                                <Label fx:id="formTitle" text="BUY SHARES" styleClass="h-tiny"/>
-                                                                                <HBox spacing="6">
-                                                                                    <children>
-                                                                                        <ToggleButton text="Option A" selected="true"
-                                                                                                      maxWidth="1.7976931348623157E308"
-                                                                                                      HBox.hgrow="ALWAYS"/>
-                                                                                        <ToggleButton text="Option B"
-                                                                                                      maxWidth="1.7976931348623157E308"
-                                                                                                      HBox.hgrow="ALWAYS"/>
-                                                                                    </children>
-                                                                                </HBox>
-                                                                                <HBox spacing="6" alignment="CENTER_LEFT">
-                                                                                    <children>
-                                                                                        <TextField fx:id="quantity" text="100"
-                                                                                                   styleClass="qty" prefWidth="90"/>
-                                                                                        <Label text="shares" styleClass="faint"/>
-                                                                                    </children>
-                                                                                </HBox>
-                                                                                <HBox fx:id="limitRow" spacing="6" alignment="CENTER_LEFT">
-                                                                                    <children>
-                                                                                        <Label text="LIMIT PRICE" styleClass="h-tiny"/>
-                                                                                        <TextField fx:id="limit" styleClass="qty" prefWidth="80"/>
-                                                                                    </children>
-                                                                                </HBox>
-                                                                                <Region styleClass="divider"/>
-                                                                                <VBox spacing="6">
-                                                                                    <children>
-                                                                                        <HBox spacing="8" alignment="CENTER_LEFT">
-                                                                                            <children>
-                                                                                                <Label text="Shares cost" styleClass="kv-key"/>
-                                                                                                <Region HBox.hgrow="ALWAYS"/>
-                                                                                                <Label fx:id="sharesCost" text="–" styleClass="kv-val"/>
-                                                                                            </children>
-                                                                                        </HBox>
-                                                                                        <HBox spacing="8" alignment="CENTER_LEFT">
-                                                                                            <children>
-                                                                                                <Label text="Commission" styleClass="kv-key"/>
-                                                                                                <Region HBox.hgrow="ALWAYS"/>
-                                                                                                <Label fx:id="commission" text="–" styleClass="kv-val"/>
-                                                                                            </children>
-                                                                                        </HBox>
-                                                                                        <HBox spacing="8" alignment="CENTER_LEFT">
-                                                                                            <children>
-                                                                                                <Label text="Total" styleClass="kv-key"/>
-                                                                                                <Region HBox.hgrow="ALWAYS"/>
-                                                                                                <Label fx:id="totalCost" text="–" styleClass="kv-val"/>
-                                                                                            </children>
-                                                                                        </HBox>
-                                                                                        <HBox spacing="8" alignment="CENTER_LEFT">
-                                                                                            <children>
-                                                                                                <Label text="Balance after" styleClass="kv-key"/>
-                                                                                                <Region HBox.hgrow="ALWAYS"/>
-                                                                                                <Label fx:id="balanceAfter" text="–" styleClass="kv-val"/>
-                                                                                            </children>
-                                                                                        </HBox>
-                                                                                    </children>
-                                                                                </VBox>
-                                                                                <Button fx:id="buy" text="Buy" styleClass="primary"
-                                                                                        maxWidth="1.7976931348623157E308"/>
-                                                                            </children>
-                                                                        </VBox>
-                                                                    </children>
-                                                                </HBox>
-                                                            </children>
-                                                        </VBox>
-                                                    </children>
-                                                </VBox>
-                                            </content>
-                                        </ScrollPane>
-                                    </children>
-                                </HBox>
-                            </children>
-                        </StackPane>
+                                                                            <VBox spacing="6" styleClass="card"
+                                                                                  minWidth="260" prefWidth="260" maxWidth="260">
+                                                                                <children>
+                                                                                    <Label fx:id="formTitle" text="BUY SHARES" styleClass="h-tiny"/>
+                                                                                    <HBox spacing="6">
+                                                                                        <children>
+                                                                                            <ToggleButton text="Option A" selected="true"
+                                                                                                          maxWidth="1.7976931348623157E308"
+                                                                                                          HBox.hgrow="ALWAYS"/>
+                                                                                            <ToggleButton text="Option B"
+                                                                                                          maxWidth="1.7976931348623157E308"
+                                                                                                          HBox.hgrow="ALWAYS"/>
+                                                                                        </children>
+                                                                                    </HBox>
+                                                                                    <HBox spacing="6" alignment="CENTER_LEFT">
+                                                                                        <children>
+                                                                                            <TextField fx:id="quantity" text="100"
+                                                                                                       styleClass="qty" prefWidth="90"/>
+                                                                                            <Label text="shares" styleClass="faint"/>
+                                                                                        </children>
+                                                                                    </HBox>
+                                                                                    <HBox fx:id="limitRow" spacing="6" alignment="CENTER_LEFT">
+                                                                                        <children>
+                                                                                            <Label text="LIMIT PRICE" styleClass="h-tiny"/>
+                                                                                            <TextField fx:id="limit" styleClass="qty" prefWidth="80"/>
+                                                                                        </children>
+                                                                                    </HBox>
+                                                                                    <Region styleClass="divider"/>
+                                                                                    <VBox spacing="6">
+                                                                                        <children>
+                                                                                            <HBox spacing="8" alignment="CENTER_LEFT">
+                                                                                                <children>
+                                                                                                    <Label text="Shares cost" styleClass="kv-key"/>
+                                                                                                    <Region HBox.hgrow="ALWAYS"/>
+                                                                                                    <Label fx:id="sharesCost" text="–" styleClass="kv-val"/>
+                                                                                                </children>
+                                                                                            </HBox>
+                                                                                            <HBox spacing="8" alignment="CENTER_LEFT">
+                                                                                                <children>
+                                                                                                    <Label text="Commission" styleClass="kv-key"/>
+                                                                                                    <Region HBox.hgrow="ALWAYS"/>
+                                                                                                    <Label fx:id="commission" text="–" styleClass="kv-val"/>
+                                                                                                </children>
+                                                                                            </HBox>
+                                                                                            <HBox spacing="8" alignment="CENTER_LEFT">
+                                                                                                <children>
+                                                                                                    <Label text="Total" styleClass="kv-key"/>
+                                                                                                    <Region HBox.hgrow="ALWAYS"/>
+                                                                                                    <Label fx:id="totalCost" text="–" styleClass="kv-val"/>
+                                                                                                </children>
+                                                                                            </HBox>
+                                                                                            <HBox spacing="8" alignment="CENTER_LEFT">
+                                                                                                <children>
+                                                                                                    <Label text="Balance after" styleClass="kv-key"/>
+                                                                                                    <Region HBox.hgrow="ALWAYS"/>
+                                                                                                    <Label fx:id="balanceAfter" text="–" styleClass="kv-val"/>
+                                                                                                </children>
+                                                                                            </HBox>
+                                                                                        </children>
+                                                                                    </VBox>
+                                                                                    <Button fx:id="buy" text="Buy" styleClass="primary"
+                                                                                            maxWidth="1.7976931348623157E308"/>
+                                                                                </children>
+                                                                            </VBox>
+                                                                        </children>
+                                                                    </HBox>
+                                                                </children>
+                                                            </VBox>
+                                                        </children>
+                                                    </VBox>
+                                                </content>
+                                            </ScrollPane>
+                                        </children>
+                                    </HBox>
+                                </children>
+                            </StackPane>
+                        </ScrollPane>
                     </content>
                 </Tab>
             </tabs>

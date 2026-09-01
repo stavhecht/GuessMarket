@@ -34,6 +34,15 @@ import java.util.List;
  */
 class OrderBookPane extends HBox {
 
+    /**
+     * Narrow enough to sit two of these in a small window, wide enough to still read.
+     *
+     * <p>A ladder is a form as much as a table, and a form squeezed past its fields is
+     * unusable rather than merely small, so this is where it stops giving width back and
+     * the workspace around {@code EventsScreen} starts scrolling instead.
+     */
+    private static final double LADDER_MIN_WIDTH = 280;
+
     private final DesktopApp app;
     private final Ladder[] ladders = { new Ladder(0), new Ladder(1) };
 
@@ -47,7 +56,7 @@ class OrderBookPane extends HBox {
         getChildren().addAll(ladders);
         for (Ladder ladder : ladders) {
             HBox.setHgrow(ladder, Priority.ALWAYS);
-            ladder.setMinWidth(0);
+            ladder.setMinWidth(LADDER_MIN_WIDTH);
         }
     }
 

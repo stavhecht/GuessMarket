@@ -30,6 +30,9 @@ import javafx.scene.layout.VBox;
  */
 class LmsrPane extends HBox {
 
+    /** The narrowest a card can be and still read as one; below it the workspace scrolls. */
+    private static final double CARD_MIN_WIDTH = 240;
+
     private final DesktopApp app;
     private final Card[] cards = { new Card(0), new Card(1) };
 
@@ -41,6 +44,7 @@ class LmsrPane extends HBox {
         getChildren().addAll(cards);
         for (Card card : cards) {
             HBox.setHgrow(card, Priority.ALWAYS);
+            card.setMinWidth(CARD_MIN_WIDTH);
         }
     }
 
@@ -106,7 +110,6 @@ class LmsrPane extends HBox {
             quantity.setMinWidth(72);
             quantity.textProperty().addListener((observable, was, now) -> requote());
 
-            // Same as the ladder's pair: the label is the whole button, so it does not shrink.
             buy.setMinWidth(Region.USE_PREF_SIZE);
             buy.setOnAction(action -> buy());
 
