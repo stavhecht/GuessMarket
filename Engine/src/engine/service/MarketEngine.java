@@ -255,7 +255,7 @@ public class MarketEngine {
 
     /**
      * The same, carrying one string of the front end's own back with it: the desktop app
-     * saves the theme the window was wearing, so reopening the session reopens the look.
+     * saves the look the window was set up in, so reopening the session reopens it that way.
      *
      * <p>The engine never reads it. It is written as a second object <em>after</em> the
      * state, which is what keeps the file backwards compatible in both directions: a

@@ -4,7 +4,9 @@ import javafx.animation.Interpolator;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
 import javafx.animation.Timeline;
+import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.ReadOnlyDoubleProperty;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.value.ChangeListener;
@@ -46,11 +48,34 @@ import java.util.function.DoubleFunction;
  *
  * <p>A figure on a screen that is not in front of anyone can be told to keep its animation
  * until it is: see {@link #onlyWhile}.
+ *
+ * <p>Every ticker in the window can be switched off at once through {@link #animated()},
+ * which the check box beside the tabs is bound to.
  */
 final class Ticker {
 
     /** Long enough to read as a movement, short enough not to delay the next command. */
     private static final Duration ROLL = Duration.millis(420);
+
+    /**
+     * Whether figures roll to their new value or simply land on it. One switch for the whole
+     * window, because it is a preference about the window and not about any one figure, and
+     * the tickers are built in four different places (both screens, {@link LmsrPane} and
+     * {@link OrderBookPane}) which would otherwise each have to be handed it.
+     *
+     * <p>It is read at the moment a figure moves, so turning it off stops the next roll
+     * rather than any already running: a roll is over in {@link #ROLL}, and stopping one
+     * mid-count would leave the digits at whatever they had reached until the next move.
+     *
+     * <p>Only the animation is switched. Every figure is written out either way, so a window
+     * with this off is never wrong, only still, exactly as {@link #onlyWhile} is.
+     */
+    private static final BooleanProperty ANIMATED = new SimpleBooleanProperty(true);
+
+    /** The window-wide animation switch, for the control that turns it on and off. */
+    static BooleanProperty animated() {
+        return ANIMATED;
+    }
 
     private final Label label;
     private final DoubleFunction<String> format;
@@ -187,8 +212,9 @@ final class Ticker {
         }
 
         // A figure that is not a number cannot be interpolated, and neither can the first
-        // one shown: there is nothing behind it to count up from.
-        boolean wouldRoll = mayRoll && showing
+        // one shown: there is nothing behind it to count up from. Nor does anything roll
+        // while the window's animations are switched off.
+        boolean wouldRoll = mayRoll && showing && ANIMATED.get()
                 && Double.isFinite(wanted) && Double.isFinite(rolling.get());
 
         if (wouldRoll && inView != null && !inView.get()) {

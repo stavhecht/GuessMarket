@@ -83,7 +83,9 @@ class SparkChart extends Pane {
         Theme theme = Theme.current();
         Color line = Color.web(theme.token("line"));
         Color faint = Color.web(theme.token("tx-3"));
-        Font tick = Font.font(theme.token("mono").split(",")[0].replace("'", ""), 9);
+        // One family name, and an installed one: Font.font falls back to the System font
+        // for anything it does not have, exactly as the stylesheet does. See Theme.
+        Font tick = Font.font(theme.token("mono"), 9);
 
         int points = longest();
         if (points == 0) {

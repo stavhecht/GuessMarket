@@ -14,12 +14,14 @@ import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.shape.Circle;
@@ -98,6 +100,7 @@ public class DesktopApp extends Application {
     @FXML private TabPane tabs;
     @FXML private Tab eventsTab;
     @FXML private Tab usersTab;
+    @FXML private CheckBox animations;
 
     /** The file-bar buttons, disabled while a load is in flight. */
     private final List<Button> whileIdle = new ArrayList<>();
@@ -158,6 +161,7 @@ public class DesktopApp extends Application {
         usersScreen.animateOnlyWhile(usersTab.selectedProperty());
 
         wireFileBar();
+        wireAnimationSwitch();
 
         // The window's size is the layout file's: it sets the root's preferred size, and a
         // Scene with no dimensions of its own takes it.
@@ -226,19 +230,16 @@ public class DesktopApp extends Application {
         loadFile.setOnAction(action -> chooseFile("Load events file", "XML files", "*.xml", false)
                 .ifPresent(this::loadInBackground));
 
-        // The theme rides along in the session file, so reopening it reopens the look.
+        // The look rides along in the session file, so reopening it reopens the window.
         saveSession.setOnAction(action -> chooseFile("Save session", "GuessMarket sessions", "*.gm", true)
                 .ifPresent(file -> perform(() ->
-                        "Session saved to " + engine.saveState(file.getPath(), theme.name()) + ".")));
+                        "Session saved to " + engine.saveState(file.getPath(), uiState()) + ".")));
 
         loadSession.setOnAction(action -> chooseFile("Load session", "GuessMarket sessions", "*.gm", false)
                 .ifPresent(file -> perform(() -> {
                     loadedFile = engine.loadState(file.getPath());
                     live.reset();   // the balances behind a restored session are not this run's
-                    Theme saved = Theme.named(engine.getRestoredUiState());
-                    if (saved != null && saved != theme) {
-                        wearTheme(saved);
-                    }
+                    wearUiState(engine.getRestoredUiState());
                     return "Session loaded from " + loadedFile + ".";
                 })));
 
@@ -251,6 +252,24 @@ public class DesktopApp extends Application {
         tinted.add(loadedMark);
 
         whileIdle.addAll(List.of(loadFile, saveSession, loadSession));
+    }
+
+    /**
+     * Hands the check box on the tab strip the two things in the window that move.
+     *
+     * <p>{@link Ticker} takes it as a binding, so every figure in both screens reads the
+     * same switch, and a ticker built later (either screen rebuilds its panes as the
+     * selection changes) is governed by it without being told. The load bar's ramp reads it
+     * per load instead: see {@link #loadInBackground}.
+     *
+     * <p>Only the animation is switched off. Every figure is still written, and the bar
+     * still crosses the strip, so the window with this unticked says exactly what it says
+     * with it ticked, only without the movement.
+     */
+    private void wireAnimationSwitch() {
+        animations.setTooltip(new Tooltip(
+                "Roll figures to their new value, and ramp the load bar, instead of jumping"));
+        Ticker.animated().bind(animations.selectedProperty());
     }
 
     /**
@@ -301,6 +320,10 @@ public class DesktopApp extends Application {
      * is what keeps the FX thread out of the worker's way.
      */
     private void loadInBackground(File file) {
+        // Read here rather than in the task: the switch is a control, and a control is the
+        // FX thread's. A load already under way keeps the ramp it started with.
+        boolean ramp = animations.isSelected();
+
         Task<Void> load = new Task<>() {
             @Override
             protected Void call() throws InterruptedException {
@@ -317,9 +340,15 @@ public class DesktopApp extends Application {
              *
              * <p>This is the deliberate delay. Without it the whole thing is over before
              * the strip has finished appearing, and a load that reports nothing looks the
-             * same as a load that failed.
+             * same as a load that failed. It is the one movement in the window that is
+             * spent rather than saved, so the animation switch turns it off with the rest:
+             * unticked, the bar goes straight to the fraction it was walking to.
              */
             private void creep(double from, double to, long millis) throws InterruptedException {
+                if (!ramp) {
+                    updateProgress(to, 1);
+                    return;
+                }
                 int steps = 32;
                 for (int step = 1; step <= steps; step++) {
                     Thread.sleep(millis / steps);
@@ -389,6 +418,58 @@ public class DesktopApp extends Application {
             fileState.setText("LOADED");
         });
         settle.play();
+    }
+
+    // --- what a session carries about the window ---
+
+    /**
+     * How the window is set up, in the one string a saved session keeps for the front end.
+     *
+     * <p>The engine writes it and never reads it, which is exactly why it is a
+     * {@code String}: {@code engine} cannot be allowed to depend on a {@code ui} type. So
+     * the format is this class's own, and it is the theme's name followed by a
+     * {@code key=value} for everything else worth reopening a session in.
+     *
+     * <p><b>The theme comes first and bare</b> because that is the whole of what a session
+     * saved before this method existed contains. Read back by {@link #wearUiState}, such a
+     * file is a theme and no settings, rather than a name this build fails to recognise,
+     * and a session saved here still opens in the right theme in a build that only knows
+     * how to read one.
+     */
+    private String uiState() {
+        return theme.name() + FIELD + "animations=" + (animations.isSelected() ? "on" : "off");
+    }
+
+    /** What separates the fields of {@link #uiState}. Not a character any field can hold. */
+    private static final String FIELD = ";";
+
+    /**
+     * Sets the window up the way the session being opened was saved.
+     *
+     * <p>Tolerant in the same way {@link Theme#named} is, and for the same reason: this
+     * string comes out of a file the app cannot vouch for. A field it does not recognise, a
+     * value it cannot read, a field that is not there at all: each of those leaves that one
+     * part of the window as it is. A session saved by a build with a setting this one does
+     * not have is a window set up the old way, not a broken session.
+     */
+    private void wearUiState(String state) {
+        if (state == null) {
+            return;     // saved before the front end kept anything at all
+        }
+        String[] fields = state.split(FIELD);
+
+        Theme saved = Theme.named(fields[0]);
+        if (saved != null && saved != theme) {
+            wearTheme(saved);
+        }
+
+        for (String field : fields) {
+            if (field.equals("animations=on")) {
+                animations.setSelected(true);        // Ticker follows the box, not this
+            } else if (field.equals("animations=off")) {
+                animations.setSelected(false);
+            }
+        }
     }
 
     private void cycleTheme() {

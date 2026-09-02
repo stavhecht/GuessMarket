@@ -19,6 +19,29 @@
  * leans on them (the small-caps labels, and Neon's shouting buttons) are uppercased in
  * Java by `Widgets` instead.
  *
+ * **Every `-fx-font-family` here names one family, and it is a family that is installed.**
+ * A list is not a fallback chain in JavaFX: it reads the first name and stops, and a name
+ * that is not installed does not fall through to the next one, it falls to the System font
+ * while the rest of the line never runs. So a list is documentation of intent and nothing
+ * more, and this sheet used to be written entirely in intent: `'JetBrains Mono', 'SF Mono',
+ * Menlo, ...` came out as the System font on a Mac, which is proportional, so the columns
+ * of figures the design lines up on their decimal points were not monospaced at all.
+ *
+ * What each one is, and what to put there on a machine that has no such font, since one
+ * name means one platform's name:
+ *
+ *   body     'System'        the platform's own UI face, so this one is right everywhere
+ *   mono     'Menlo'         macOS. Windows: 'Consolas'
+ *   Neon     'Futura'        macOS. Windows: 'Trebuchet MS'
+ *   Neon mono 'Andale Mono'  macOS. Windows: 'Lucida Console'
+ *
+ * `monospace` and `Monospaced` are the one exception to naming a real face: JavaFX honours
+ * both, on every platform, and they resolve to something genuinely fixed-width (Courier New
+ * here). They are the safe answer if this ever has to run somewhere unknown, and they are
+ * not used above only because Menlo is the better face where the app is developed.
+ * `Theme` holds the mono family for `SparkChart`, which paints rather than styles, and the
+ * two have to say the same thing.
+ *
  * This is JavaFX CSS, not the web's, and the IDE lints it as the web's. It tolerates every
  * `-fx-` and `-gm-` property as a vendor prefix, but `segments(...)`, JavaFX's dashed
  * border pattern, is a function no browser has, so the two rules that use it carry a
@@ -50,7 +73,7 @@
     -gm-shadow: rgba(16, 24, 32, 0.22);
 
     -fx-background-color: -gm-bg;
-    -fx-font-family: 'Segoe UI', 'Helvetica Neue', Helvetica, system-ui, sans-serif;
+    -fx-font-family: 'System';
     -fx-font-size: 12px;
     -fx-text-fill: -gm-tx;
     -fx-focus-color: -gm-accent;
@@ -112,17 +135,17 @@
 .h-panel   { -fx-font-size: 15px; -fx-font-weight: 600; }
 .h-section { -fx-font-size: 13px; -fx-font-weight: 600; }
 .h-caps    { -fx-font-size: 11px; -fx-font-weight: 700; -fx-text-fill: -gm-tx-2; }
-.h-tiny    { -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+.h-tiny    { -fx-font-family: 'Menlo';
              -fx-font-size: 9.5px; -fx-text-fill: -gm-tx-3; }
 .muted     { -fx-text-fill: -gm-tx-2; -fx-font-size: 12px; }
 .faint     { -fx-text-fill: -gm-tx-3; -fx-font-size: 12px; }
-.note      { -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+.note      { -fx-font-family: 'Menlo';
              -fx-font-size: 10.5px; -fx-text-fill: -gm-tx-3; }
-.mono      { -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+.mono      { -fx-font-family: 'Menlo';
              -fx-font-size: 11px; }
-.num       { -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+.num       { -fx-font-family: 'Menlo';
              -fx-font-size: 11px; -fx-text-fill: -gm-tx; }
-.num-big   { -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+.num-big   { -fx-font-family: 'Menlo';
              -fx-font-size: 20px; -fx-font-weight: 600; }
 .up        { -fx-text-fill: -gm-up; }
 .down      { -fx-text-fill: -gm-down; }
@@ -187,7 +210,7 @@
 /* ---------- buttons ---------- */
 
 .button {
-    -fx-font-family: 'Segoe UI', 'Helvetica Neue', Helvetica, system-ui, sans-serif;
+    -fx-font-family: 'System';
     -fx-font-size: 12.5px;
     -fx-min-height: 30; -fx-pref-height: 30; -fx-padding: 0 12 0 12;
     -fx-background-color: -gm-surface; -fx-text-fill: -gm-tx;
@@ -222,7 +245,7 @@
 .button.small:hover { -fx-border-color: -gm-accent-line; -fx-text-fill: -gm-accent; }
 .button.tiny {
     -fx-min-height: 22; -fx-pref-height: 22; -fx-font-size: 10.5px;
-    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-font-family: 'Menlo';
     -fx-padding: 0 8 0 8; -fx-text-fill: -gm-tx-2;
 }
 .button.tiny:hover { -fx-border-color: -gm-accent-line; -fx-text-fill: -gm-accent; }
@@ -274,7 +297,7 @@
     -fx-effect: dropshadow(gaussian, -gm-accent-line, 6, 0.55, 0, 0);
 }
 .text-field.qty {
-    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-font-family: 'Menlo';
     -fx-alignment: center-right;
 }
 /* Except in a form, where a figure belongs next to the label that names it rather than at
@@ -310,6 +333,27 @@
     -fx-background-color: -gm-accent-bg; -fx-text-fill: -gm-accent;
 }
 
+/* The animation switch on the tab strip, and the only check box in the window. Modena
+   paints its box from -fx-base, which this sheet never sets, so it is stated in tokens
+   here like every other control; the tick is a shape rather than a glyph, so its colour is
+   a background and not a text fill. */
+.check-box {
+    -fx-text-fill: -gm-tx-2; -fx-font-size: 11px; -fx-cursor: hand;
+}
+.check-box > .box {
+    -fx-background-color: -gm-surface; -fx-background-insets: 0;
+    -fx-border-color: -gm-line; -fx-border-width: 1;
+    -fx-background-radius: 3; -fx-border-radius: 3;
+    -fx-padding: 2 2 2 2;
+}
+.check-box:hover { -fx-text-fill: -gm-tx; }
+.check-box:hover > .box { -fx-border-color: -gm-tx-3; }
+.check-box:selected { -fx-text-fill: -gm-accent; }
+.check-box:selected > .box {
+    -fx-background-color: -gm-accent; -fx-border-color: -gm-accent;
+}
+.check-box:selected > .box > .mark { -fx-background-color: white; }
+
 /* ---------- status pills ---------- */
 
 .pill {
@@ -327,7 +371,7 @@
     -fx-text-fill: -gm-tx-2; -fx-background-color: -gm-sunken; -fx-font-weight: 400;
 }
 .pill.count {
-    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-font-family: 'Menlo';
     -fx-font-weight: 400; -fx-text-fill: -gm-tx-3;
     -fx-background-color: -gm-sunken; -fx-padding: 2 5 2 5;
 }
@@ -349,7 +393,7 @@
     -fx-border-color: transparent; -fx-padding: 0;
 }
 .table-view .column-header .label {
-    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-font-family: 'Menlo';
     -fx-font-size: 9.5px; -fx-text-fill: -gm-tx-3;
     -fx-alignment: center-left; -fx-padding: 0 8 0 8;
 }
@@ -377,11 +421,11 @@
     -fx-border-color: transparent; -fx-alignment: center-left;
 }
 .table-view .table-cell.numeric {
-    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-font-family: 'Menlo';
     -fx-font-size: 11px; -fx-alignment: center-right;
 }
 .table-view .table-cell.ident {
-    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-font-family: 'Menlo';
     -fx-font-size: 11px; -fx-text-fill: -gm-tx-3;
 }
 .table-view .placeholder .label { -fx-text-fill: -gm-tx-3; -fx-font-size: 12px; }
@@ -440,7 +484,7 @@
 }
 .opt-name  { -fx-font-size: 12px; -fx-font-weight: 600; }
 .opt-price {
-    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-font-family: 'Menlo';
     -fx-font-size: 15px; -fx-font-weight: 600; -fx-text-fill: -gm-tx;
 }
 .meter {
@@ -451,12 +495,12 @@
 .meter-fill.other { -fx-background-color: -gm-tx-3; }
 .kv-key { -fx-font-size: 11.5px; -fx-text-fill: -gm-tx-2; }
 .kv-val {
-    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-font-family: 'Menlo';
     -fx-font-size: 11.5px; -fx-text-fill: -gm-tx;
 }
 .text-field.mini {
     -fx-min-height: 26; -fx-pref-height: 26; -fx-padding: 0 8 0 8;
-    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-font-family: 'Menlo';
     -fx-font-size: 11.5px; -fx-alignment: center-right;
 }
 .button.compact {
@@ -471,7 +515,7 @@
     -fx-padding: 7 10 7 10;
 }
 .stat-val {
-    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-font-family: 'Menlo';
     -fx-font-size: 11.5px; -fx-font-weight: 600; -fx-text-fill: -gm-tx;
 }
 .ladder-head {
@@ -489,7 +533,7 @@
 .ladder-row:hover { -fx-opacity: 0.88; }
 .ladder-empty {
     -fx-padding: 0 10 0 10; -fx-min-height: 22; -fx-pref-height: 22;
-    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-font-family: 'Menlo';
     -fx-font-size: 10.5px; -fx-text-fill: -gm-tx-3;
 }
 /*noinspection CssInvalidFunction*/
@@ -530,7 +574,7 @@
     -fx-background-radius: 4; -fx-padding: 0;
 }
 .pct {
-    -fx-font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    -fx-font-family: 'Menlo';
     -fx-font-size: 11.5px; -fx-font-weight: 600; -fx-text-fill: -gm-accent;
 }
 
@@ -588,13 +632,38 @@
  * radii, border widths and font families have to be restated. They are grouped by token
  * rather than by component, so each block below is one of Neon's overrides in full. */
 
-/* font: 'Space Grotesk' */
+/* font: 'Futura', the display face Neon writes its words in.
+ *
+ * Set on the root and inherited, which is what carries it to every label, every table cell
+ * and every field: a node takes its parent's font unless a rule of its own names one, and
+ * the only rules that do are the mono block below and `.button`, restated here beside it.
+ * The figures stay monospaced because that block is more specific than inheritance is,
+ * which is also why this cannot be written as `.theme-neon .label`: two classes outrank
+ * the one-class type roles, and the numbers would come out in Futura with the words. */
 .theme-neon,
 .theme-neon .button {
-    -fx-font-family: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
+    -fx-font-family: 'Futura';
 }
 
-/* mono: 'IBM Plex Mono' */
+/* label size: the whole scale one step up, because that face runs small at Light's sizes.
+ *
+ * The body size is set on the root and inherited, rather than on `.label`, so that a label
+ * carrying a type role keeps the role's size instead of being flattened to one figure by a
+ * selector that outranks it; the roles that do carry a size are restated here, one step up
+ * each. The mono roles are deliberately not: those are the columns of figures, and their
+ * sizes are what keep a table's rows the height the design drew.
+ *
+ * The root is reached as `.root.theme-neon` and not as `.theme-neon`, which would do the
+ * same thing, because a second block with that selector alone at the start of a line is
+ * exactly what `Theme.colours` reads the design tokens out of. */
+.root.theme-neon { -fx-font-size: 13px; }
+.theme-neon .muted,
+.theme-neon .faint     { -fx-font-size: 13px; }
+.theme-neon .h-panel   { -fx-font-size: 16px; }
+.theme-neon .h-section { -fx-font-size: 14px; }
+.theme-neon .h-caps    { -fx-font-size: 12px; }
+
+/* mono: 'Andale Mono', a wider machine than Light's Menlo */
 .theme-neon .h-tiny,
 .theme-neon .note,
 .theme-neon .mono,
@@ -612,7 +681,7 @@
 .theme-neon .table-view .column-header .label,
 .theme-neon .table-view .table-cell.numeric,
 .theme-neon .table-view .table-cell.ident {
-    -fx-font-family: 'IBM Plex Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+    -fx-font-family: 'Andale Mono';
 }
 
 /* r: 999, the pill-shaped controls */

@@ -47,6 +47,7 @@
 <?import javafx.collections.FXCollections?>
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
 <?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ProgressBar?>
@@ -101,6 +102,14 @@
     </top>
 
     <center>
+        <!-- The tab pane and the animation switch share one cell, because the switch belongs
+             on the tab strip and a TabPane has nowhere to put a node of its own. It is laid
+             over the strip at the far right, given the header's own 37px height so that it
+             sits on the tabs' line, and it covers nothing: the strip is empty to the right
+             of the two tabs, and the content below it belongs to the selected tab.
+             The children are written directly, without a <children> element, so that the
+             tab pane below keeps the indentation it is easier to read at. -->
+        <StackPane>
         <TabPane fx:id="tabs">
             <tabs>
 
@@ -772,6 +781,15 @@
                 </Tab>
             </tabs>
         </TabPane>
+
+        <!-- REAL, injected into DesktopApp.animations: the window's animation switch, which
+             Ticker.animated() is bound to. Its own height is the tab strip's, so it is
+             centred on that line by being pinned to the top of the stack. -->
+        <CheckBox fx:id="animations" text="Animations" selected="true"
+                  prefHeight="37" minHeight="37" StackPane.alignment="TOP_RIGHT">
+            <StackPane.margin><Insets top="0" right="14" bottom="0" left="0"/></StackPane.margin>
+        </CheckBox>
+        </StackPane>
     </center>
 
     <!--

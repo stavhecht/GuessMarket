@@ -31,7 +31,12 @@ import java.util.regex.Pattern;
  *
  * <p>The exception is the two font families, which are not colours and so cannot be looked
  * up. Only Neon changes them, and only {@link SparkChart} reads one, so they are held here
- * rather than parsed.
+ * rather than parsed. Each is <b>one family name</b>, the same name the stylesheet gives
+ * that theme's mono roles, and it has to be a family that is installed: a list would not
+ * help, since JavaFX reads the first name and falls to the System font rather than to the
+ * next one, which is the whole reason the sheet names a single face everywhere. The head
+ * of {@code guessmarket.css} says which face each theme uses and what to name instead on
+ * a machine without it; change one and change the other.
  *
  * <p>JavaFX has no {@code text-transform} and no {@code letter-spacing}, so the two places
  * the design leans on them (the small caps labels, and Neon's shouting buttons) are
@@ -39,11 +44,11 @@ import java.util.regex.Pattern;
  */
 enum Theme {
 
-    LIGHT("Light", "theme-light", "'JetBrains Mono','SF Mono',Menlo,Consolas,monospace"),
+    LIGHT("Light", "theme-light", "Menlo"),
 
-    DARK("Dark", "theme-dark", "'JetBrains Mono','SF Mono',Menlo,Consolas,monospace"),
+    DARK("Dark", "theme-dark", "Menlo"),
 
-    NEON("Neon", "theme-neon", "'IBM Plex Mono','JetBrains Mono',Menlo,Consolas,monospace");
+    NEON("Neon", "theme-neon", "Andale Mono");
 
     private static final String SHEET_NAME = "guessmarket.css";
 
