@@ -639,6 +639,15 @@
 }
 .gm-dialog > .button-bar > .container { -fx-background-color: -gm-surface; }
 .gm-dialog .content.label { -fx-text-fill: -gm-tx; }
+/* Why a form was refused, at the foot of the dialog. Two classes, because .gm-dialog .label
+   above is two and would otherwise paint this the colour of ordinary text. */
+.gm-dialog .form-error {
+    -fx-text-fill: -gm-down;
+    -fx-padding: 8 10 8 10;
+    -fx-background-color: -gm-sunken;
+    -fx-border-color: -gm-down; -fx-border-width: 0 0 0 2;
+    -fx-background-radius: 4; -fx-border-radius: 4;
+}
 
 .tooltip {
     -fx-background-color: -gm-tx; -fx-text-fill: -gm-surface; -fx-font-size: 11px;

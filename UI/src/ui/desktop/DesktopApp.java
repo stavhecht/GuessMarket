@@ -522,12 +522,14 @@ public class DesktopApp extends Application {
     }
 
     /**
-     * Opens the create-event form, and issues what it hands back.
+     * Opens the create-event form, and reports what it did.
      *
-     * <p>The dialog returns a command rather than a description of an event: it knows how to
-     * read a form, and the engine knows what an event may be. So a rejected event reports
-     * itself through {@link #perform} in the status bar, exactly like a rejected purchase,
-     * and this method contains no rules at all.
+     * <p>The dialog is handed the engine and calls it while it is still on screen, so a
+     * refusal is shown on the form itself and the form stays up with everything typed into it
+     * intact. It closes only on an event the engine accepted, and what it hands back is the
+     * sentence describing that event, put through {@link #perform} so it is reported and the
+     * window redrawn around it exactly like any other command. This method contains no rules
+     * at all.
      */
     void createEvent() {
         String creator = engine.getCurrentUserName();
@@ -535,10 +537,10 @@ public class DesktopApp extends Application {
             report("Select a user on the Users tab first: whoever creates an event runs it.", true);
             return;
         }
-        CreateEventDialog dialog = new CreateEventDialog(creator);
+        CreateEventDialog dialog = new CreateEventDialog(creator, engine);
         dialog.initOwner(stage);
         theme.applyTo(dialog.getDialogPane());
-        dialog.showAndWait().ifPresent(command -> perform(() -> command.apply(engine)));
+        dialog.showAndWait().ifPresent(made -> perform(() -> made));
     }
 
     /** Asks which option won, then settles the event on it. */
