@@ -12,6 +12,7 @@ import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleObjectProperty;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -54,6 +55,20 @@ import java.util.Map;
  */
 class LiveMarket {
 
+    /**
+     * One point of a balance timeline: what the account held, and when that became true.
+     *
+     * <p>{@code at} is the moment this window <em>saw</em> the move, which for anything
+     * done in this session is the command that made it: {@code sync} runs at the end of
+     * every one. It is {@code null} for the first point, the cash the file gave the
+     * account, because nothing here happened at any particular time; and a session
+     * restored from a {@code .gm} file stamps its single step from that figure to the
+     * saved balance with the moment it was loaded, since the engine keeps no ledger to say
+     * when any of it actually happened.
+     */
+    record BalancePoint(double balance, Instant at) {
+    }
+
     /** Both option prices of one event, indexed the way the engine indexes them. */
     private final Map<Integer, DoubleProperty[]> prices = new LinkedHashMap<>();
 
@@ -72,7 +87,7 @@ class LiveMarket {
     private final Map<String, DoubleProperty> balances = new LinkedHashMap<>();
 
     /** Every balance this user has held since the window opened, oldest first. */
-    private final Map<String, List<Double>> balanceHistory = new LinkedHashMap<>();
+    private final Map<String, List<BalancePoint>> balanceHistory = new LinkedHashMap<>();
 
     /**
      * What option {@code optionIndex} of {@code eventId} is priced at now.
@@ -127,7 +142,7 @@ class LiveMarket {
      * no per-user ledger, so a session loaded from a {@code .gm} file draws its whole past as
      * a single step from the initial cash to the balance it was saved at.
      */
-    List<Double> balanceHistory(String userName) {
+    List<BalancePoint> balanceHistory(String userName) {
         // Copied, not handed out: the caller keeps it inside a chart series, and the next
         // sync would otherwise grow a list something is already drawing.
         return List.copyOf(balanceHistory.getOrDefault(userName, List.of()));
@@ -164,19 +179,21 @@ class LiveMarket {
         }
         for (UserView user : engine.getUsers()) {
             DoubleProperty held = balance(user.name());
-            List<Double> history = balanceHistory.computeIfAbsent(user.name(), name -> new ArrayList<>());
+            List<BalancePoint> history = balanceHistory.computeIfAbsent(user.name(), name -> new ArrayList<>());
             // An empty history means this user has just arrived. The line starts at what the
             // file gave them rather than at what they hold now, because by the time this runs
             // the load has already spent some of it: a Market Maker's initial investment
             // leaves their balance before the window sees the market at all, and a chart
             // opening at the figure that came out the other side hides what it cost.
             if (history.isEmpty()) {
-                history.add(user.initialCash());
+                history.add(new BalancePoint(user.initialCash(), null));
             }
             // Then one point per move, whether it happened just now or before this window
-            // opened, so a restored session's whole past arrives as a single step.
-            if (history.get(history.size() - 1) != user.balance()) {
-                history.add(user.balance());
+            // opened, so a restored session's whole past arrives as a single step. The time
+            // is this moment: every command ends in a refresh, so a move made in this
+            // session is seen as it happens.
+            if (history.get(history.size() - 1).balance() != user.balance()) {
+                history.add(new BalancePoint(user.balance(), Instant.now()));
             }
             held.set(user.balance());
         }

@@ -21,6 +21,21 @@ public sealed interface TradingMethod extends Serializable {
      * @param b the liquidity parameter: the larger it is, the less a purchase moves the price
      */
     record Lmsr(double b) implements TradingMethod {
+
+        /**
+         * What it costs to open this market: {@code b·ln2}, the scoring rule's provable
+         * worst-case loss, which the Market Maker puts into the event's account and which
+         * covers every payout the rule can ever owe.
+         *
+         * <p>The same number the scoring rule gives for a market at zero shares, its
+         * {@code cost(0, 0, b)}, and it is written here rather than in
+         * {@code engine.service.LmsrCalculator} for the reason {@link OrderBook#openingPrice()}
+         * is: it is a property of the settings, and the loader has to be able to ask what an
+         * event will cost its maker without being able to see into {@code service}.
+         */
+        public double subsidy() {
+            return b * Math.log(2);
+        }
     }
 
     /**

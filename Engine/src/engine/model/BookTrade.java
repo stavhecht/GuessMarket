@@ -1,6 +1,7 @@
 package engine.model;
 
 import java.io.Serializable;
+import java.time.Instant;
 
 /**
  * One line of an order book's history: shares changing hands, or being created.
@@ -15,6 +16,10 @@ import java.io.Serializable;
  * @param seller     {@code null} for a mint: the shares came from nowhere, and the money
  *                   went to the event's account rather than to a person
  * @param commission what the buyer paid the Market Maker on top, 0 under {@code ON_CLOSE}
+ * @param createdAt  when the trade happened, as {@link Trade#createdAt()} is for an LMSR
+ *                   purchase; {@code null} in a {@code .gm} session saved before a book
+ *                   trade carried a time, since a record deserialises a component the
+ *                   stream does not have as its default value
  */
 public record BookTrade(int sequence,
                         Kind kind,
@@ -24,7 +29,22 @@ public record BookTrade(int sequence,
                         long quantity,
                         String buyer,
                         String seller,
-                        double commission) implements Serializable {
+                        double commission,
+                        Instant createdAt) implements Serializable {
+
+    /** Stamped where it is written, so no caller ever names the time itself. */
+    public BookTrade(int sequence,
+                     Kind kind,
+                     int optionIndex,
+                     String optionName,
+                     double price,
+                     long quantity,
+                     String buyer,
+                     String seller,
+                     double commission) {
+        this(sequence, kind, optionIndex, optionName, price, quantity, buyer, seller,
+                commission, Instant.now());
+    }
 
     public enum Kind {
         MATCH,

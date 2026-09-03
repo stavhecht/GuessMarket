@@ -20,6 +20,10 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.util.Duration;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.function.Function;
 
 /**
@@ -41,6 +45,11 @@ final class Widgets {
 
     /** Shown where a figure has no value yet: an option nobody has quoted, say. */
     static final String NONE = "–";
+
+    /** How {@link #stamp} writes a moment. English, not the machine's locale: so is the app. */
+    private static final DateTimeFormatter STAMP =
+            DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm:ss", Locale.ENGLISH)
+                    .withZone(ZoneId.systemDefault());
 
     /** Where {@link #followMoney} remembers what a label is already following. */
     private static final String FOLLOWING = "gm-following";
@@ -82,6 +91,18 @@ final class Widgets {
 
     static String moveClass(double amount) {
         return amount > 0 ? "up" : amount < 0 ? "down" : "faint";
+    }
+
+    /**
+     * When something happened, as a chart's hover popup says it, in the machine's own zone.
+     *
+     * <p>Empty rather than {@link #NONE} for a moment nobody recorded: a market's opening
+     * price is not a trade, and a {@code .gm} session saved before book trades carried a
+     * time has none to give. The popup then shows the figure by itself, which is the whole
+     * of what is known, rather than a dash under it.
+     */
+    static String stamp(Instant when) {
+        return when == null ? "" : STAMP.format(when);
     }
 
     // --- text ---

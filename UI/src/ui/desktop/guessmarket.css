@@ -578,6 +578,26 @@
     -fx-font-size: 11.5px; -fx-font-weight: 600; -fx-text-fill: -gm-accent;
 }
 
+/* ---------- the charts' hover popup ----------
+ *
+ * A SparkChart paints on a Canvas, and a canvas has no children to hang a Tooltip on, so
+ * the popup naming a hovered point is a node of the chart's own pane. It reads the way
+ * this sheet's .tooltip does, dark against the plot, with the figure in the mono face
+ * every number in the app wears and the moment under it a step smaller. */
+
+.chart-tip {
+    -fx-background-color: -gm-tx; -fx-background-radius: 5;
+    -fx-padding: 5 8 5 8;
+}
+.chart-tip .value {
+    -fx-font-family: 'Menlo';
+    -fx-font-size: 11px; -fx-text-fill: -gm-surface;
+}
+.chart-tip .when {
+    -fx-font-family: 'Menlo';
+    -fx-font-size: 9.5px; -fx-text-fill: derive(-gm-surface, -35%);
+}
+
 /* ---------- the FXML mirror's chart stand-in ----------
  *
  * Nothing in the app wears this class. SparkChart takes its height as a constructor
@@ -680,7 +700,9 @@
 .theme-neon .pct,
 .theme-neon .table-view .column-header .label,
 .theme-neon .table-view .table-cell.numeric,
-.theme-neon .table-view .table-cell.ident {
+.theme-neon .table-view .table-cell.ident,
+.theme-neon .chart-tip .value,
+.theme-neon .chart-tip .when {
     -fx-font-family: 'Andale Mono';
 }
 
@@ -690,7 +712,8 @@
 .theme-neon .text-field,
 .theme-neon .combo-box,
 .theme-neon .progress-bar > .track,
-.theme-neon .tooltip {
+.theme-neon .tooltip,
+.theme-neon .chart-tip {
     -fx-background-radius: 999; -fx-border-radius: 999;
 }
 .theme-neon .progress-bar > .bar { -fx-background-radius: 999; }

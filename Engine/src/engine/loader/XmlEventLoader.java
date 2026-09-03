@@ -25,6 +25,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -221,9 +222,17 @@ public class XmlEventLoader {
      *
      * <p>The funding half is the one rule that needs both halves of the file at once, and
      * the reason {@code initial-cash} is worth checking beyond "not negative": a market
-     * maker who starts with less than the book asks for could never open it. Only order
-     * books are asked it, since an LMSR event's maker puts nothing in, since the b·ln2 subsidy
-     * is the house's money rather than theirs.
+     * maker who starts with less than their markets cost could never open them. <b>Both
+     * methods cost their maker money</b>: an order book asks for its {@code inital}, and an
+     * LMSR event asks for the {@code b·ln2} its account is seeded with, which is the maker's
+     * stake and not the house's, so that closing an untouched market returns what was put
+     * up rather than paying out money nobody ever paid in.
+     *
+     * <p>Asked of the <em>total</em> a maker runs rather than of each event alone, because
+     * that is what actually leaves their balance when the file opens. Per event, a user
+     * running two books they could each afford separately would pass here and then overdraw
+     * halfway through {@code applyInitialAllocations}, which is exactly the kind of failure
+     * this class exists to turn into a rejected file.
      */
     private void requireEveryEventHasAMarketMaker(List<Event> events,
                                                   List<User> users,
@@ -234,6 +243,7 @@ public class XmlEventLoader {
         Map<String, User> byName = users.stream()
                 .collect(Collectors.toMap(User::getName, Function.identity()));
 
+        Map<String, Double> owed = new LinkedHashMap<>();
         for (Event event : events) {
             String makerName = marketMakerOf.get(event.getId());
             require(makerName != null,
@@ -241,14 +251,19 @@ public class XmlEventLoader {
                             + "'GM-mareket-maker'.",
                     event.getId(), event.getName());
 
-            if (!(event.getTradingMethod() instanceof TradingMethod.OrderBook orderBook)) {
-                continue;
-            }
-            User maker = byName.get(makerName);
-            require(maker.getInitialCash() >= orderBook.initialInvestment(),
-                    "User '%s' is market maker for event '%s', whose order book asks for an initial "
-                            + "investment of %d, more than the %d they start with.",
-                    maker.getName(), event.getName(), orderBook.initialInvestment(), maker.getInitialCash());
+            double cost = event.getTradingMethod() instanceof TradingMethod.OrderBook orderBook
+                    ? orderBook.initialInvestment()
+                    : ((TradingMethod.Lmsr) event.getTradingMethod()).subsidy();
+            owed.merge(makerName, cost, Double::sum);
+        }
+
+        for (Map.Entry<String, Double> entry : owed.entrySet()) {
+            User maker = byName.get(entry.getKey());
+            require(maker.getInitialCash() >= entry.getValue(),
+                    "User '%s' is market maker for events that cost %.2f to open (an order book's "
+                            + "initial investment, and b·ln2 for each LMSR event), more than the %d "
+                            + "they start with.",
+                    maker.getName(), entry.getValue(), maker.getInitialCash());
         }
     }
 

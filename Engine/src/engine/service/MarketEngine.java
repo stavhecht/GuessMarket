@@ -96,7 +96,9 @@ public class MarketEngine {
     public void loadEventsFile(String path) {
         LoadedMarket market = loader.load(path);
         eventManager.load(market.events(), market.users());
-        eventManager.applyInitialSubsidies(lmsr);
+        // Both are funded by the Market Makers themselves, and the loader has already
+        // refused a file where one of them could not afford what they run.
+        eventManager.applyInitialSubsidies();
         eventManager.applyInitialAllocations();
         currentUserName = null;   // the new file has its own users
         fileLoaded = true;
@@ -107,8 +109,10 @@ public class MarketEngine {
      *
      * <p>The event is subsidised the moment it exists, {@code b·ln2} into its own account,
      * the provable worst case of the scoring rule, so it is solvent before anyone can trade
-     * on it. That money comes from the house, not from the creator, and it is the one
-     * documented exception to the conservation identity.
+     * on it. <b>That money is the creator's</b>, exactly as an order book's initial
+     * investment is: it leaves their balance, and settlement returns whatever the payouts
+     * did not need. So creating a market costs what running it can lose, and nothing is
+     * created or destroyed across this call.
      *
      * @param b the liquidity parameter; a file can only state a whole number, but nothing in
      *          the market requires one
@@ -127,14 +131,24 @@ public class MarketEngine {
                 commissionMethod, optionNames);
         requireEvent(b > 0, "b must be greater than 0, got " + b + ".");
 
+        TradingMethod.Lmsr settings = new TradingMethod.Lmsr(b);
+        // Their balance now, not the cash the file started them with, for the reason the
+        // order book's investment is checked against it: what funds a market is today's money.
+        requireEvent(creator.getBalance() >= settings.subsidy(),
+                "'" + creator.getName() + "' holds "
+                        + String.format("%.2f", creator.getBalance())
+                        + " and cannot put up the " + String.format("%.2f", settings.subsidy())
+                        + " an LMSR event with b = " + b + " opens with.");
+
         Event event = new Event(eventManager.nextEventId(), eventName, eventDescription,
-                commissionPercent / PERCENT, commissionMethod, new TradingMethod.Lmsr(b), options);
+                commissionPercent / PERCENT, commissionMethod, settings, options);
 
         // --- commit ---
         eventManager.addEvent(event);
+        // Before the subsidy: it is the market-maker link that entitles them to fund it.
         creator.addMarketMakerEvent(event.getId());
-        // This event alone: applyInitialSubsidies would pay every LMSR event a second time.
-        eventManager.subsidise(event, lmsr);
+        // This event alone: applyInitialSubsidies would charge every other maker again.
+        eventManager.subsidise(event, creator);
         return viewOf(event);
     }
 
@@ -644,9 +658,11 @@ public class MarketEngine {
      * part of the {@code b·ln2} subsidy, plus everything buyers paid in) goes back to the
      * Market Maker too: they put the subsidy up, so the remainder is theirs to take back.
      *
-     * <p>The subsidy itself came from the house rather than from them, so this is the one
-     * settlement that hands out money nobody put in: the same b·ln2 the conservation
-     * identity already makes an exception for, arriving where it can be seen.
+     * <p>That is a refund and not a windfall, because the subsidy was charged to them when
+     * the event opened. A market nobody traded returns exactly what it cost, which is what
+     * makes closing one a round trip rather than a way of being paid for doing nothing; a
+     * market that traded returns the stake plus what the traders paid in, less what the
+     * scoring rule owed the winners, which is the maker's profit or their loss.
      */
     private SettlementResult closeLmsrEvent(Event event, int winningOptionIndex) {
         int eventId = event.getId();

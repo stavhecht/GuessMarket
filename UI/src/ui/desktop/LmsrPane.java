@@ -93,7 +93,18 @@ class LmsrPane extends HBox {
             // filled part is literally how likely this outcome is being called. It follows
             // the ticker rather than the engine's figure, so the bar and the digits above it
             // move together, bound once here, because the property never changes.
-            fill.prefWidthProperty().bind(meter.widthProperty().multiply(priceTicker.value()));
+            //
+            // maxWidth, not prefWidth, which is how every other bar in this app is drawn
+            // (OrderBookPane's depth, UsersScreen's position bars). A StackPane stretches a
+            // resizable child across its whole area and clamps it only by that child's
+            // maximum, so the preferred width was never what the bar was drawn at: it was
+            // full at every price. What it did instead was size the card, since a
+            // StackPane's own preferred width is its children's, so the card asked for
+            // meter × price more room after every purchase that moved the price, and the
+            // panel grew a little each time. Bound through the maximum, the bar is the price
+            // and the card's width says nothing about it.
+            fill.setPrefWidth(0);
+            fill.maxWidthProperty().bind(meter.widthProperty().multiply(priceTicker.value()));
 
             VBox figures = new VBox(6,
                     Widgets.row(8, Widgets.label("Shares outstanding", "kv-key"),

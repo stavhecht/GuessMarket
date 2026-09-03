@@ -30,6 +30,7 @@ import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
+import javafx.util.StringConverter;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -136,6 +137,16 @@ class UsersScreen extends HBox {
     private String charted;
 
     // the trade panel
+    /**
+     * Every event the selected user is in, so this panel can be walked through them all
+     * without hunting for a row in the table above it, and so an event they run but hold
+     * nothing in can be reached at all.
+     */
+    private final ComboBox<EventView> eventPicker = new ComboBox<>();
+
+    /** True while the picker is being set from the selection rather than driving it. */
+    private boolean syncingPicker;
+
     private final Label tradeTitle = Widgets.label("No event selected", "h-section");
     private final Label tradeStatus = Widgets.pill("", "off");
     private final Button closeEvent = Widgets.button("Close event…", "danger", "small");
@@ -308,8 +319,10 @@ class UsersScreen extends HBox {
     }
 
     private VBox tradePanel() {
-        HBox head = Widgets.row(8, tradeTitle, tradeStatus, Widgets.grower(), closeEvent);
+        HBox head = Widgets.row(8, tradeTitle, tradeStatus, Widgets.grower(),
+                Widgets.filter("event", eventPicker, 210), closeEvent);
         head.getStyleClass().add("panel-head");
+        wireEventPicker();
         closeEvent.setOnAction(action -> {
             EventView event = eventById(tradeEventId);
             if (event == null) {
@@ -452,9 +465,24 @@ class UsersScreen extends HBox {
         int owned = user.marketMakerEventIds().size();
         ownerOf.setVisible(owned > 0);
         ownerOf.setText("Owner of " + owned);
+        // Counted off the rows rather than off the holdings: an event this user runs and
+        // holds nothing in is one of their events and not one of their positions, and the
+        // table below now lists both kinds.
+        int events = 0;
+        int held = 0;
+        List<Integer> counted = new ArrayList<>();
+        for (MarketData.Position position : allPositions) {
+            if (!counted.contains(position.eventId())) {
+                counted.add(position.eventId());
+                events++;
+            }
+            if (position.shares() > 0) {
+                held++;
+            }
+        }
         summary.setText(String.format("%d event%s · %d position%s · %s reserved",
-                user.holdings().size(), user.holdings().size() == 1 ? "" : "s",
-                allPositions.size(), allPositions.size() == 1 ? "" : "s",
+                events, events == 1 ? "" : "s",
+                held, held == 1 ? "" : "s",
                 Widgets.money(user.reservedCash())));
         // Set first, follow second: setting a property that is already being followed is
         // the movement, and pointing at one that is not is the arrival. Both end with the
@@ -526,16 +554,22 @@ class UsersScreen extends HBox {
             return;
         }
 
-        List<Double> history = app.live().balanceHistory(charted);
+        List<LiveMarket.BalancePoint> history = app.live().balanceHistory(charted);
+        List<Double> balances = new ArrayList<>();
         List<String> ticks = new ArrayList<>();
+        List<String> stamps = new ArrayList<>();
         for (int i = 0; i < history.size(); i++) {
+            balances.add(history.get(i).balance());
             ticks.add(i == 0 ? "start" : "c" + i);
+            // Empty for the first point: the cash the file gave the account happened at no
+            // moment this window can name, so its popup is the figure alone.
+            stamps.add(Widgets.stamp(history.get(i).at()));
         }
         int moves = Math.max(0, history.size() - 1);
         balanceMovesText.set(moves == 1 ? "1 change" : moves + " changes");
         balanceChart.show(
-                List.of(new SparkChart.Series("balance", "accent", history)),
-                Widgets::money, ticks);
+                List.of(new SparkChart.Series("balance", "accent", balances)),
+                Widgets::money, ticks, stamps);
     }
 
     private void showPositions() {
@@ -578,15 +612,23 @@ class UsersScreen extends HBox {
      */
     private void drawBars(List<MarketData.Position> visible) {
         bars.getChildren().clear();
-        double widest = 0;
+        // Only what is actually held: an event the user runs and holds nothing in is a row
+        // in the table above, but it has no value to draw a bar of.
+        List<MarketData.Position> held = new ArrayList<>();
         for (MarketData.Position position : visible) {
+            if (position.shares() > 0) {
+                held.add(position);
+            }
+        }
+        double widest = 0;
+        for (MarketData.Position position : held) {
             widest = Math.max(widest, position.ifWins() == null ? position.value() : position.ifWins());
         }
-        if (visible.isEmpty() || widest <= 0) {
+        if (held.isEmpty() || widest <= 0) {
             bars.getChildren().add(Widgets.faint("Nothing held yet."));
             return;
         }
-        for (MarketData.Position position : visible) {
+        for (MarketData.Position position : held) {
             double ceiling = position.ifWins() == null ? position.value() : position.ifWins();
             bars.getChildren().add(bar(position, ceiling / widest, position.value() / widest));
         }
@@ -616,8 +658,81 @@ class UsersScreen extends HBox {
 
     // --- the trade panel ---
 
+    /**
+     * The picker in this panel's head, which walks the user's own events.
+     *
+     * <p>It names events rather than positions, because an event is what this panel shows:
+     * an order book the user holds both sides of is two rows in the table above and one
+     * entry here. Choosing one selects its first row in that table, which is what actually
+     * drives the panel, so there is a single path into {@link #showTrade} however the event
+     * was reached, and the table and the picker cannot disagree about what is on show.
+     */
+    private void wireEventPicker() {
+        eventPicker.setVisibleRowCount(12);
+        eventPicker.setConverter(new StringConverter<>() {
+            @Override
+            public String toString(EventView event) {
+                return event == null ? "" : event.id() + " · " + event.name();
+            }
+
+            @Override
+            public EventView fromString(String text) {
+                return null;    // it is a picker, never typed into
+            }
+        });
+        eventPicker.setOnAction(action -> {
+            EventView chosen = eventPicker.getValue();
+            if (syncingPicker || chosen == null
+                    || (tradeEventId != null && tradeEventId == chosen.id())) {
+                return;
+            }
+            for (MarketData.Position position : positions.getItems()) {
+                if (position.eventId() == chosen.id()) {
+                    positions.getSelectionModel().select(position);
+                    return;
+                }
+            }
+            // Filtered out of the table by the role box, but still theirs to look at.
+            showTrade(chosen.id());
+        });
+    }
+
+    /**
+     * Refills the picker with the events this user is in, keeping whatever is on show
+     * selected in it.
+     *
+     * <p>Rebuilt rather than compared, because it is a short list and it is rebuilt only
+     * when the account changes; the guard is what stops setting the value here from
+     * reading as somebody choosing one.
+     */
+    private void syncEventPicker() {
+        List<EventView> mine = new ArrayList<>();
+        List<Integer> seen = new ArrayList<>();
+        for (MarketData.Position position : allPositions) {
+            if (!seen.contains(position.eventId())) {
+                seen.add(position.eventId());
+                EventView event = eventById(position.eventId());
+                if (event != null) {
+                    mine.add(event);
+                }
+            }
+        }
+        syncingPicker = true;
+        try {
+            if (!mine.equals(eventPicker.getItems())) {
+                eventPicker.getItems().setAll(mine);
+            }
+            EventView showing = eventById(tradeEventId);
+            eventPicker.setValue(showing);
+            eventPicker.setDisable(mine.isEmpty());
+        } finally {
+            syncingPicker = false;
+        }
+    }
+
     private void showTrade(Integer eventId) {
         tradeEventId = eventId;
+        syncEventPicker();
         EventView event = eventById(eventId);
         boolean open = event != null && MarketData.isActive(event) && selectedUser != null;
 

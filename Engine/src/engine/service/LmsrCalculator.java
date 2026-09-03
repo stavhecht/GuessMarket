@@ -1,5 +1,7 @@
 package engine.service;
 
+import engine.model.TradingMethod;
+
 /**
  * Hanson's Logarithmic Market Scoring Rule, for a two-outcome market. Pure and
  * stateless: every method is a function of its arguments alone, which makes this
@@ -54,9 +56,13 @@ public final class LmsrCalculator {
     /**
      * The worst-case loss a two-outcome LMSR market maker can take, and therefore the
      * amount an event account must be seeded with to be guaranteed solvent at
-     * settlement: b · ln 2.
+     * settlement: b · ln 2, which is this rule's {@code cost(0, 0, b)}.
+     *
+     * <p>Written down once, on the settings it belongs to, because the loader has to ask
+     * the same question of a file it has not built a market out of yet, and the loader
+     * cannot see into this package.
      */
     public double initialSubsidy(double b) {
-        return cost(0, 0, b);
+        return new TradingMethod.Lmsr(b).subsidy();
     }
 }

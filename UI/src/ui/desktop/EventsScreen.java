@@ -448,10 +448,11 @@ class EventsScreen extends HBox {
             chart.show(List.of(), value -> "", List.of());
             return;
         }
-        List<double[]> series;
+        List<MarketData.PricePoint> series;
         boolean fromOpen;
         if (MarketData.isLmsr(charted)) {
-            series = app.engine().getPriceHistory(charted.id());
+            series = MarketData.priceSeries(app.engine().getEventStatus(charted.id()),
+                    app.engine().getPriceHistory(charted.id()));
             fromOpen = true;    // an LMSR event always has an opening price: 0.5 a side
         } else {
             OrderBookStatusView status = app.engine().getOrderBookStatus(charted.id());
@@ -467,14 +468,19 @@ class EventsScreen extends HBox {
      * @param fromOpen whether the first point is the market's opening price rather than a
      *                 transaction, which is what the axis calls it
      */
-    private void drawChart(EventView event, List<double[]> series, boolean fromOpen) {
+    private void drawChart(EventView event, List<MarketData.PricePoint> series, boolean fromOpen) {
         List<Double> first = new ArrayList<>();
         List<Double> second = new ArrayList<>();
         List<String> ticks = new ArrayList<>();
+        List<String> stamps = new ArrayList<>();
         for (int i = 0; i < series.size(); i++) {
-            first.add(series.get(i)[0]);
-            second.add(series.get(i)[1]);
+            MarketData.PricePoint point = series.get(i);
+            first.add(point.prices()[0]);
+            second.add(point.prices()[1]);
             ticks.add(fromOpen && i == 0 ? "open" : "t" + (fromOpen ? i : i + 1));
+            // Empty where the point is the market's open rather than a trade: the hover
+            // popup then names the price and says nothing about when, which is the truth.
+            stamps.add(Widgets.stamp(point.at()));
         }
 
         chartLegend.getChildren().setAll(
@@ -484,7 +490,8 @@ class EventsScreen extends HBox {
         DoubleFunction<String> axis = value -> String.format("%.2f", value);
         chart.show(List.of(
                 new SparkChart.Series(event.optionNames().get(0), "accent", first),
-                new SparkChart.Series(event.optionNames().get(1), "tx-3", second)), axis, ticks);
+                new SparkChart.Series(event.optionNames().get(1), "tx-3", second)),
+                axis, ticks, stamps);
     }
 
     /**

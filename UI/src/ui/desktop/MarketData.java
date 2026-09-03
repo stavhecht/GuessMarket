@@ -11,6 +11,7 @@ import engine.model.BookTrade;
 import engine.model.Trade;
 import engine.service.MarketEngine;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -44,6 +45,17 @@ final class MarketData {
     /** One line of an event's participation log, whichever way the event trades. */
     record Line(int sequence, String user, String optionName, long shares,
                 double price, double commission, double total) {
+    }
+
+    /**
+     * One point of a price chart: both option prices as they stood, and when the trade
+     * that moved them happened.
+     *
+     * <p>{@code at} is {@code null} where no trade is behind the point: the market's
+     * opening price, which is where both series begin, and any trade from a {@code .gm}
+     * session saved before its kind of trade carried a time.
+     */
+    record PricePoint(double[] prices, Instant at) {
     }
 
     /** Where one user stands in one event: what they hold, and what it is worth. */
@@ -143,20 +155,48 @@ final class MarketData {
      * has no such price and starts as it always did: at {@code NaN}, which {@link SparkChart}
      * draws as a gap, with the line beginning at the first trade.
      */
-    static List<double[]> priceSeries(OrderBookStatusView status) {
+    static List<PricePoint> priceSeries(OrderBookStatusView status) {
         List<BookTrade> oldestFirst = new ArrayList<>(status.history());
         Collections.reverse(oldestFirst);
 
-        List<double[]> series = new ArrayList<>();
+        List<PricePoint> series = new ArrayList<>();
         double open = status.openingPrice() == null ? Double.NaN : status.openingPrice();
         double[] latest = { open, open };
         if (status.openingPrice() != null) {
-            series.add(latest);
+            series.add(new PricePoint(latest, null));    // the open is nobody's trade
         }
         for (BookTrade trade : oldestFirst) {
             latest = new double[] { latest[0], latest[1] };
             latest[trade.optionIndex()] = trade.price();
-            series.add(latest);
+            series.add(new PricePoint(latest, trade.createdAt()));
+        }
+        return series;
+    }
+
+    /**
+     * The same series for an LMSR event: the engine's own prices, with the time of the
+     * trade that produced each one written against it.
+     *
+     * <p>Two halves of the same history, which is why they are put together here rather
+     * than in a screen: {@code MarketEngine.getPriceHistory} replays the event through the
+     * scoring rule and hands back the opening price followed by one point per trade,
+     * oldest first, while {@code status.history()} is those same trades newest first. So
+     * point {@code i} belongs to trade {@code i - 1} of the reversed log, and point 0
+     * belongs to none of them. If the two ever disagree in length the extra points simply
+     * carry no time, since a price drawn against the wrong moment would be worse than one
+     * drawn against no moment at all.
+     *
+     * @param history what {@code MarketEngine.getPriceHistory} returned for this event
+     */
+    static List<PricePoint> priceSeries(EventStatusView status, List<double[]> history) {
+        List<Trade> oldestFirst = new ArrayList<>(status.history());
+        Collections.reverse(oldestFirst);
+
+        List<PricePoint> series = new ArrayList<>();
+        for (int i = 0; i < history.size(); i++) {
+            boolean fromTrade = i > 0 && i - 1 < oldestFirst.size();
+            series.add(new PricePoint(history.get(i),
+                    fromTrade ? oldestFirst.get(i - 1).createdAt() : null));
         }
         return series;
     }
@@ -172,8 +212,17 @@ final class MarketData {
     }
 
     /**
-     * Every option {@code user} holds shares in, with what the holding is worth now and
-     * what it pays if that side wins.
+     * Every event {@code user} is in: each option they hold shares in, with what the
+     * holding is worth now and what it pays if that side wins, and then every event they
+     * run and hold nothing in.
+     *
+     * <p><b>Ownership is a position here even when no shares are.</b> A Market Maker is
+     * only given shares by an order book, whose opening allocation credits them
+     * {@code inital / d} of each option; an LMSR event's creator is given none, and is
+     * still its owner. Walking the holdings alone therefore lists a user's order books and
+     * silently drops the LMSR events they created, on the one screen that is supposed to
+     * say what a user is in, and the row is also what the trade panel below the table
+     * selects, so its owner could not close their own event from here either.
      *
      * @param engine consulted for each event's live prices; the caller has already checked
      *               that a file is loaded
@@ -185,6 +234,7 @@ final class MarketData {
         }
 
         List<Position> positions = new ArrayList<>();
+        Set<Integer> listed = new LinkedHashSet<>();
         for (HoldingView holding : user.holdings()) {
             EventView event = byId.get(holding.eventId());
             if (event == null) {
@@ -227,16 +277,43 @@ final class MarketData {
                 Double ifWins = active ? shares * payout : null;
                 positions.add(new Position(event.id(), event.name(), owner, optionName,
                         shares, invested[i], value, ifWins, event.status()));
+                listed.add(event.id());
+            }
+        }
+
+        // The events they run that the holdings did not reach: every LMSR event they
+        // created, and any order book whose opening allocation they have since sold. No
+        // option, no shares and nothing invested, because that is the whole truth of it;
+        // what the row carries is the event, the Owner role and its status.
+        for (EventView event : events) {
+            if (user.marketMakerEventIds().contains(event.id()) && !listed.contains(event.id())) {
+                positions.add(new Position(event.id(), event.name(), true, Widgets.NONE,
+                        0, null, 0.0, null, event.status()));
             }
         }
         return positions;
     }
 
-    /** Balance plus everything they hold, if every side they are on comes in. */
+    /**
+     * Balance plus everything they hold, if every side they are still on comes in.
+     *
+     * <p><b>A settled event adds nothing.</b> Its shares are still on the user, because
+     * settlement pays the money out and leaves the holding as the record of what was held,
+     * so counting a winning share here would count the same money twice: once in the
+     * balance it was just paid into, and again as something still to come. Which is what
+     * used to happen, and it left the figure standing above the account for good, since
+     * nothing after the close could move it back down.
+     *
+     * <p>So this is balance plus every <em>open</em> position at what it pays if that side
+     * wins, and closing an event moves it: the payout arrives in the balance, and the
+     * position that was promising it stops being counted.
+     */
     static double potentialOutcome(UserView user, List<Position> positions) {
         double total = user.balance();
         for (Position position : positions) {
-            total += position.ifWins() == null ? position.value() : position.ifWins();
+            if (position.ifWins() != null) {    // null is a settled event, or a bare ownership
+                total += position.ifWins();
+            }
         }
         return total;
     }

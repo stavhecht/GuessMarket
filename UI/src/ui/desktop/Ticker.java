@@ -208,6 +208,10 @@ final class Ticker {
         // nothing to do if that is where it has just been asked to go.
         double heading = timeline != null ? target : rolling.get();
         if (showing && heading == wanted) {
+            // Nothing to do, and nothing to wait for either: a move that was being kept
+            // back for this screen's next appearance has been undone by this one, and
+            // playing it on arrival would count the figure up to a value it no longer has.
+            held = false;
             return;
         }
 

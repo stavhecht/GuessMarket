@@ -197,27 +197,45 @@ public class EventManager implements Serializable {
         }
     }
 
-    /** Seeds every LMSR event's account with b·ln2 so payouts are always covered. Call once, right after loading. */
-    public void applyInitialSubsidies(LmsrCalculator calculator) {
+    /**
+     * Has every LMSR event's Market Maker seed its account with b·ln2, so payouts are
+     * always covered. Call once, right after loading.
+     */
+    public void applyInitialSubsidies() {
         for (Event event : events.values()) {
-            subsidise(event, calculator);
+            subsidise(event, requireMarketMaker(event.getId()));
         }
     }
 
     /**
-     * Seeds ONE LMSR event's account with its provable worst-case loss, {@code b·ln2}.
+     * Opens ONE LMSR event: its Market Maker puts up the scoring rule's provable worst-case
+     * loss, {@code b·ln2}, and the event's account holds it until settlement.
+     *
+     * <p><b>The subsidy is the maker's money, not the house's.</b> It used to be conjured
+     * into the account by this method, which made opening a market free and closing an
+     * untraded one pay: settlement hands whatever the payouts did not need back to the
+     * maker, so a user could load a file, touch nothing, close the events they run and walk
+     * away with a {@code b·ln2} per event that nobody had ever paid in. Charged to the
+     * maker, that same refund is their own stake coming back, an untouched market is a
+     * round trip, and {@code Σ user balances + Σ event accounts} is now constant with no
+     * exception at all.
      *
      * <p>Split out for the same reason as {@link #allocateInitial}: an event created at
-     * runtime needs its own subsidy and nobody else's. The all-events form would deposit a
-     * second {@code b·ln2} into every LMSR event already open, which is money the house
-     * never put in, and the conservation identity would stop holding, and the failure would
-     * show up nowhere near the cause.
+     * runtime needs its own subsidy and nobody else's. The all-events form would charge
+     * every Market Maker a second {@code b·ln2} for a market that is already open.
      *
-     * <p>Does nothing for an order-book event, which is solvent by a different argument.
+     * <p>Does nothing for an order-book event, which is solvent by a different argument and
+     * funded through {@link #allocateInitial} instead.
+     *
+     * @param marketMaker the event's maker, already checked to be able to afford the
+     *                    subsidy; this method moves the money, it does not vet it
      */
-    public void subsidise(Event event, LmsrCalculator calculator) {
-        if (event.isLmsr()) {
-            event.getMMAccount().deposit(calculator.initialSubsidy(event.getB()));
+    public void subsidise(Event event, User marketMaker) {
+        if (!(event.getTradingMethod() instanceof TradingMethod.Lmsr settings)) {
+            return;
         }
+        double subsidy = settings.subsidy();
+        marketMaker.withdraw(subsidy);
+        event.getMMAccount().deposit(subsidy);
     }
 }
