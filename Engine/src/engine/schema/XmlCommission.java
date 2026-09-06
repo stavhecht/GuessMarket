@@ -14,7 +14,7 @@ public class XmlCommission {
 
     /**
      * {@code @XmlValue} binds the element's own text rather than a child element.
-     * A primitive, so an empty element arrives as 0 — a legal commission, hence
+     * A primitive, so an empty element arrives as 0, a legal commission, hence
      * the loader's range check treats it as such.
      */
     @XmlValue

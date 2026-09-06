@@ -1,13 +1,15 @@
 package engine.service;
 
+import engine.model.TradingMethod;
+
 /**
  * Hanson's Logarithmic Market Scoring Rule, for a two-outcome market. Pure and
- * stateless — every method is a function of its arguments alone, which makes this
+ * stateless: every method is a function of its arguments alone, which makes this
  * the one class worth testing in complete isolation.
  *
  * <p>C(q) = b · ln(e^(q1/b) + e^(q2/b)), and the price of an outcome is ∂C/∂q_i.
  *
- * <p>Both are evaluated with the larger share count factored out of the exponentials —
+ * <p>Both are evaluated with the larger share count factored out of the exponentials;
  * see {@link #cost}. Written literally they overflow to {@code Infinity} once q/b passes
  * ~709, where {@code Math.exp} runs out of double; for a b of 100 that is a purchase of
  * only ~71,000 shares. Factoring it out costs one subtraction and makes both exact at
@@ -22,7 +24,7 @@ public final class LmsrCalculator {
      * is the same value rearranged: pulling e^(m/b) out of the log divides each
      * exponential by it and leaves an m behind. Every exponent is then ≤ 0, one of them
      * exactly 0, so the two terms lie in (0, 1] and their sum can never overflow. The
-     * smaller term underflowing to 0 is harmless — at that distance it is negligible.
+     * smaller term underflowing to 0 is harmless: at that distance it is negligible.
      */
     public double cost(long qYes, long qNo, double b) {
         double max = Math.max(qYes, qNo);
@@ -32,8 +34,8 @@ public final class LmsrCalculator {
     /** Instantaneous prices of the two outcomes. Always sums to 1. */
     public double[] prices(long q_yes, long q_no, double b) {
         // Shifted by the max for the same reason as cost(). The shift cancels in the
-        // ratio, so the prices are unchanged, and it holds the denominator at ≥ 1 —
-        // the literal form could reach Infinity/Infinity and hand back NaN.
+        // ratio, so the prices are unchanged, and it holds the denominator at ≥ 1,
+        // where the literal form could reach Infinity/Infinity and hand back NaN.
         double max = Math.max(q_yes, q_no);
         double eYes = Math.exp((q_yes - max) / b);
         double eNo  = Math.exp((q_no - max) / b);
@@ -54,9 +56,13 @@ public final class LmsrCalculator {
     /**
      * The worst-case loss a two-outcome LMSR market maker can take, and therefore the
      * amount an event account must be seeded with to be guaranteed solvent at
-     * settlement: b · ln 2.
+     * settlement: b · ln 2, which is this rule's {@code cost(0, 0, b)}.
+     *
+     * <p>Written down once, on the settings it belongs to, because the loader has to ask
+     * the same question of a file it has not built a market out of yet, and the loader
+     * cannot see into this package.
      */
     public double initialSubsidy(double b) {
-        return cost(0, 0, b);
+        return new TradingMethod.Lmsr(b).subsidy();
     }
 }

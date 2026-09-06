@@ -5,7 +5,7 @@ package engine.model;
  *
  * <p>{@link #PER_PURCHASE} ({@code on-purchase} in the XML) charges the buyer on every
  * trade, calculated from the purchase price. {@link #ON_CLOSE} ({@code on-close})
- * charges nothing up front and is deducted from the winners' payout at settlement —
+ * charges nothing up front and is deducted from the winners' payout at settlement, so
  * losing participants never pay it.
  *
  * <p>Because the on-close commission comes out of money already owed to winners rather

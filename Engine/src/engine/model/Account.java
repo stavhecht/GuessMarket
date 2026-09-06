@@ -7,8 +7,8 @@ import java.io.Serializable;
  * The per-event Market Maker account.
  *
  * <p>{@code balance} and {@code commissionCollected} are deliberately separate pots.
- * The balance exists to cover exactly one obligation — paying one currency unit per
- * winning share at settlement — so mixing operator revenue into it would destroy the
+ * The balance exists to cover exactly one obligation (paying one currency unit per
+ * winning share at settlement), so mixing operator revenue into it would destroy the
  * ability to check solvency with a single comparison.
  */
 public class Account implements Serializable {

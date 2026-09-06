@@ -1,4 +1,4 @@
-package engine.service;
+package engine.loader;
 
 import java.io.File;
 
@@ -9,11 +9,11 @@ import java.io.File;
  * arrive here through the same prompt:
  *
  * <ul>
- *   <li><b>Windows</b> — Explorer's "Copy as path" (Shift+right-click) wraps the path in
+ *   <li><b>Windows</b>: Explorer's "Copy as path" (Shift+right-click) wraps the path in
  *       double quotes: {@code "C:\Users\me\events.xml"}. Those quotes are part of the
- *       string Java sees, so the file is never found — and the {@code .xml}/{@code .gm}
+ *       string Java sees, so the file is never found, and the {@code .xml}/{@code .gm}
  *       extension checks end up looking at a trailing {@code "} instead of an extension.</li>
- *   <li><b>macOS</b> — Cmd+Option+C pastes the path bare, but dragging the file into the
+ *   <li><b>macOS</b>: Cmd+Option+C pastes the path bare, but dragging the file into the
  *       terminal escapes every space with a backslash: {@code /Users/me/my\ events.xml}.</li>
  * </ul>
  *
@@ -21,7 +21,7 @@ import java.io.File;
  * backslash is the separator, and {@code C:\Users} would come out as {@code C:Users}.
  * That is the one step that has to know which platform it is running on.
  */
-final class UserPath {
+public final class UserPath {
 
     /** On Windows {@code \} is the separator; everywhere else it is the shell's escape character. */
     private static final boolean WINDOWS = File.separatorChar == '\\';
@@ -30,7 +30,7 @@ final class UserPath {
     }
 
     /** @return the path the user meant, or {@code null} if {@code raw} was {@code null} */
-    static String normalize(String raw) {
+    public static String normalize(String raw) {
         if (raw == null) {
             return null;
         }
@@ -44,7 +44,7 @@ final class UserPath {
         return WINDOWS ? path : unescape(path);
     }
 
-    /** Both ends, same quote character — one stray quote inside a name is not a wrapper. */
+    /** Both ends, same quote character; one stray quote inside a name is not a wrapper. */
     private static boolean isQuoted(String path) {
         char first = path.isEmpty() ? 0 : path.charAt(0);
         return path.length() >= 2
@@ -57,7 +57,7 @@ final class UserPath {
      * backslash is left as it is.
      *
      * <p>A macOS file name may itself contain a backslash, and dragging such a file in
-     * produces it doubled ({@code \\}), which this collapses back to one — so the
+     * produces it doubled ({@code \\}), which this collapses back to one, so the
      * round-trip is right for anything the shell escaped. Only a path typed by hand with
      * a single literal backslash in a name loses it.
      */

@@ -7,7 +7,7 @@ import jakarta.xml.bind.annotation.adapters.XmlAdapter;
  * whitespace down to a single space.
  *
  * <p>Applied with {@code @XmlJavaTypeAdapter}, it takes care of the indentation and line
- * breaks an XML author is free to add — so a name split across lines in the file still
+ * breaks an XML author is free to add, so a name split across lines in the file still
  * reads as one line in the engine, and no caller has to remember to trim.
  */
 public class NormalizedTextAdapter extends XmlAdapter<String, String> {
