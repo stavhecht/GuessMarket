@@ -1,20 +1,11 @@
 #!/usr/bin/env bash
-# Runs the built UI.jar. Its JAXB dependency jars are found through the jar's manifest
-# Class-Path, so they only need to sit next to it. The working directory is left
-# alone, so a relative path typed into the app resolves against wherever you are.
+# Launches the app. Everything it needs is named in UI.jar's manifest Class-Path: the JAXB
+# jars beside it and JavaFX under javafx/. Nothing has to be installed but a JDK, and
+# `java -jar UI.jar` on its own does the same thing from inside the app folder.
 #
-# JavaFX is not part of the JDK and cannot travel in the manifest, so the desktop UI needs
-# the SDK named on the module path: javafx.fxml as well as javafx.controls, because the
-# window's layout is read from DesktopApp.fxml. Point JAVAFX_HOME at yours if it lives
-# elsewhere.
-JAVAFX_HOME="${JAVAFX_HOME:-$HOME/Documents/javafx-sdk-25.0.4}"
-
-if [ ! -d "$JAVAFX_HOME/lib" ]; then
-  echo "JavaFX SDK not found at $JAVAFX_HOME." >&2
-  echo "Download it from https://openjfx.io and set JAVAFX_HOME to where you put it." >&2
-  exit 1
-fi
-
-exec java --module-path "$JAVAFX_HOME/lib" --add-modules javafx.controls,javafx.fxml \
-          --enable-native-access=javafx.graphics \
-          -jar "$(dirname "$0")/out/artifacts/UI_jar/UI.jar" "$@"
+# The first line is only about finding UI.jar: this script runs both from the project root,
+# where the app is under out/artifacts/UI_jar, and from inside that folder, which the
+# artifact copies it into. The working directory is deliberately left alone, so a relative
+# path typed into the app resolves against wherever you launched it from.
+D="$(dirname "$0")"; [ -f "$D/UI.jar" ] || D="$D/out/artifacts/UI_jar"
+exec java -jar "$D/UI.jar" "$@"
