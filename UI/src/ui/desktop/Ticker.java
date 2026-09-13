@@ -26,7 +26,7 @@ import java.util.function.DoubleFunction;
  * honest picture of what happened: the number really did pass through those values.
  *
  * <p><b>A ticker follows a property; it is never told a value.</b> That is what makes it
- * correct. The screens are polled: every command ends in {@code DesktopApp.refresh()},
+ * correct. The screens are polled: every command ends in {@code Shell.refresh()},
  * which rereads the engine and writes the same figures again, and a tab switch, a filter and
  * a selection all do the same, so being handed a value says nothing about whether anything
  * moved. A property does: {@code set} with an unchanged value fires nothing at all. So

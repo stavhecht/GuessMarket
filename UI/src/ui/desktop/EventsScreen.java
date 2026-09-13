@@ -58,7 +58,7 @@ class EventsScreen extends HBox {
     /** Both panels can be emptied of rows, so the screen's height has its own floor. */
     private static final double MIN_HEIGHT = 470;
 
-    private final DesktopApp app;
+    private final Host app;
 
     // left
     private final Label eventCount = Widgets.pill("0", "count");
@@ -125,7 +125,7 @@ class EventsScreen extends HBox {
     private final ChangeListener<Number> onPriceMoved = (observable, was, now) -> redrawChart();
     private EventView charted;
 
-    EventsScreen(DesktopApp app) {
+    EventsScreen(Host app) {
         super(14);
         this.app = app;
         this.lmsrPane = new LmsrPane(app);

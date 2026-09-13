@@ -96,6 +96,9 @@
 
                 <Button fx:id="saveSession" text="Save session" minWidth="-Infinity"/>
                 <Button fx:id="loadSession" text="Load session" minWidth="-Infinity"/>
+                <!-- The client's, and never shown here: it logs a user out of the server.
+                     ClientApp shows it and hides the two session buttons above instead. -->
+                <Button fx:id="logout" text="Log out" minWidth="-Infinity" visible="false" managed="false"/>
                 <Button fx:id="themeToggle" text="Light" styleClass="tiny" minWidth="-Infinity"/>
             </children>
         </HBox>

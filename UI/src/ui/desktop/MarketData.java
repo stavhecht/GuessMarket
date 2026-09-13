@@ -9,7 +9,7 @@ import engine.dto.OrderBookStatusView;
 import engine.dto.UserView;
 import engine.model.BookTrade;
 import engine.model.Trade;
-import engine.service.MarketEngine;
+import engine.service.Market;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -86,7 +86,7 @@ final class MarketData {
      * a screen can hide the button rather than offer one that is certain to be refused.
      * Every event has a maker, so this is false for everybody but one person.
      */
-    static boolean canClose(MarketEngine engine, EventView event) {
+    static boolean canClose(Market engine, EventView event) {
         return event != null
                 && isActive(event)
                 && event.marketMaker() != null
@@ -227,7 +227,7 @@ final class MarketData {
      * @param engine consulted for each event's live prices; the caller has already checked
      *               that a file is loaded
      */
-    static List<Position> positions(MarketEngine engine, UserView user, List<EventView> events) {
+    static List<Position> positions(Market engine, UserView user, List<EventView> events) {
         Map<Integer, EventView> byId = new LinkedHashMap<>();
         for (EventView event : events) {
             byId.put(event.id(), event);

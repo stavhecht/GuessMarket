@@ -33,12 +33,12 @@ class LmsrPane extends HBox {
     /** The narrowest a card can be and still read as one; below it the workspace scrolls. */
     private static final double CARD_MIN_WIDTH = 240;
 
-    private final DesktopApp app;
+    private final Host app;
     private final Card[] cards = { new Card(0), new Card(1) };
 
     private int eventId;
 
-    LmsrPane(DesktopApp app) {
+    LmsrPane(Host app) {
         super(12);
         this.app = app;
         getChildren().addAll(cards);
@@ -181,7 +181,7 @@ class LmsrPane extends HBox {
          */
         private void buy() {
             app.perform(() -> {
-                long shares = DesktopApp.readPositiveLong(quantity.getText(), "shares");
+                long shares = Shell.readPositiveLong(quantity.getText(), "shares");
                 PurchaseResult result = app.engine().participate(eventId, optionIndex, shares);
                 return String.format("Bought %s of %s for %s (commission %s).",
                         Widgets.shares(result.sharesBought()), result.optionName(),

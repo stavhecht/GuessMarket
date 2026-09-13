@@ -76,7 +76,7 @@ class UsersScreen extends HBox {
 
     private static final String ALL = "All";
 
-    private final DesktopApp app;
+    private final Host app;
 
     // left
     private final Label userCount = Widgets.pill("0", "count");
@@ -182,9 +182,25 @@ class UsersScreen extends HBox {
     private Integer tradeEventId;
     private boolean redrawing;
 
-    UsersScreen(DesktopApp app) {
+    /**
+     * Whether the screen shows one account only, the current user's, with no picker.
+     *
+     * <p>The admin view lists everyone in the file and acts as whichever row is selected.
+     * A client logged in to a server is somebody in particular and cannot become anyone
+     * else, so it shows that one account and the list panel is never built into the row.
+     * The table behind it still exists, since the trade panel reads the selected row's
+     * balance off it; it simply holds the one user and is never on screen.
+     */
+    private final boolean singleUser;
+
+    UsersScreen(Host app) {
+        this(app, false);
+    }
+
+    UsersScreen(Host app, boolean singleUser) {
         super(14);
         this.app = app;
+        this.singleUser = singleUser;
         this.limitRow = Widgets.row(6, Widgets.tiny("limit price"), limit);
 
         userCount.textProperty().bind(userTotal.asString());
@@ -203,7 +219,10 @@ class UsersScreen extends HBox {
         HBox.setHgrow(right, Priority.ALWAYS);
         right.setMinWidth(ACCOUNT_MIN_WIDTH);
         setMinHeight(MIN_HEIGHT);
-        getChildren().addAll(left, right);
+        if (!singleUser) {
+            getChildren().add(left);
+        }
+        getChildren().add(right);
     }
 
     // --- the left panel ---
@@ -422,10 +441,16 @@ class UsersScreen extends HBox {
 
         allEvents = app.engine().getEvents();
         List<UserView> everyone = app.engine().getUsers();
+        String current = app.engine().getCurrentUserName();
+        if (singleUser) {
+            // The one account this window is: the rest of the market's users are not its business.
+            everyone = everyone.stream().
+                                filter(user -> user.name().equals(current)).
+                                toList();
+        }
         userTotal.set(everyone.size());
         totalHeldText.set(Widgets.money(MarketData.totalHeld(everyone)));
 
-        String current = app.engine().getCurrentUserName();
         users.getItems().setAll(everyone);
         UserView selected = null;
         for (UserView user : everyone) {
@@ -511,7 +536,7 @@ class UsersScreen extends HBox {
      * the Events tab changes the balance here, and the roll that follows it would play out
      * behind a tab nobody is looking at. Gated on the tab's own selection, it waits and runs
      * when the tab is opened, which is the only moment there is anyone to see it. Called by
-     * {@code DesktopApp.start} once the layout has handed it the tab.
+     * {@code Shell.start} once the layout has handed it the tab.
      */
     void animateOnlyWhile(ObservableBooleanValue inView) {
         balanceTicker.onlyWhile(inView);
@@ -854,14 +879,14 @@ class UsersScreen extends HBox {
         }
         int optionIndex = chosenOption();
         app.perform(() -> {
-            long shares = DesktopApp.readPositiveLong(quantity.getText(), "shares");
+            long shares = Shell.readPositiveLong(quantity.getText(), "shares");
             if (MarketData.isLmsr(event)) {
                 PurchaseResult result = app.engine().participate(event.id(), optionIndex, shares);
                 return String.format("Bought %s of %s for %s (commission %s).",
                         Widgets.shares(result.sharesBought()), result.optionName(),
                         Widgets.money(result.sharesCost()), Widgets.money(result.commission()));
             }
-            double atPrice = DesktopApp.readPositiveDouble(limit.getText(), "price");
+            double atPrice = Shell.readPositiveDouble(limit.getText(), "price");
             OrderResult result = app.engine()
                     .placeOrder(event.id(), optionIndex, OrderSide.BUY, atPrice, shares);
             return String.format("Order #%d: %s filled, %s resting at %s.",

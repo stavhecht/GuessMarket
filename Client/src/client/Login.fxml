@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<!--
+  The login page: the one screen the client has that the admin app does not. It is shown
+  as the scene's root before the shell (DesktopApp.fxml, shared with exercise 2) and
+  replaced by it once the server has accepted the name. Styled by guessmarket.css, which
+  Theme.applyTo attaches at runtime; the classes here are the sheet's own (.panel,
+  .h-panel, .note, .primary, .down), so it wears every theme the shell does.
+
+  The fx:ids are injected into ClientApp: loginName, loginButton, loginError.
+-->
+<StackPane xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml"
+           fx:controller="client.ClientApp"
+           prefWidth="1440" prefHeight="940" styleClass="workspace">
+    <VBox fx:id="loginPane" spacing="14" alignment="CENTER_LEFT" styleClass="panel"
+          maxWidth="420" maxHeight="-Infinity">
+        <padding><Insets top="28" right="28" bottom="28" left="28"/></padding>
+        <Label text="Guess Market" styleClass="h-panel"/>
+        <Label text="Enter a name to join the market. It has to be one nobody is logged in under right now."
+               styleClass="note" wrapText="true"/>
+        <TextField fx:id="loginName" promptText="Your name" prefWidth="360"/>
+        <Button fx:id="loginButton" text="Log in" styleClass="primary" defaultButton="true"/>
+        <Label fx:id="loginError" text="" styleClass="down" wrapText="true"/>
+    </VBox>
+</StackPane>

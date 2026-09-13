@@ -43,14 +43,14 @@ class OrderBookPane extends HBox {
      */
     private static final double LADDER_MIN_WIDTH = 280;
 
-    private final DesktopApp app;
+    private final Host app;
     private final Ladder[] ladders = { new Ladder(0), new Ladder(1) };
 
     private int eventId;
     private double commissionRate;
     private boolean commissionOnPurchase;
 
-    OrderBookPane(DesktopApp app) {
+    OrderBookPane(Host app) {
         super(12);
         this.app = app;
         getChildren().addAll(ladders);
@@ -214,8 +214,8 @@ class OrderBookPane extends HBox {
 
         private void place(OrderSide side) {
             app.perform(() -> {
-                double atPrice = DesktopApp.readPositiveDouble(limit.getText(), "price");
-                long shares = DesktopApp.readPositiveLong(quantity.getText(), "shares");
+                double atPrice = Shell.readPositiveDouble(limit.getText(), "price");
+                long shares = Shell.readPositiveLong(quantity.getText(), "shares");
                 OrderResult result = app.engine().placeOrder(eventId, optionIndex, side, atPrice, shares);
                 return describe(result);
             });
