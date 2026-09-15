@@ -435,6 +435,8 @@
 
                 <!-- ============================================================
                      Real Tab, stand-in content, replaced by the generated UsersScreen.
+                     The client retitles it "Account" at start-up (Shell.start), since
+                     it shows the one logged-in account there rather than a list.
                      ============================================================ -->
                 <Tab fx:id="usersTab" text="Users" closable="false">
                     <content>
@@ -503,6 +505,7 @@
                                                                                 <children>
                                                                                     <Label text="ACCOUNT BALANCE" styleClass="h-tiny"/>
                                                                                     <Label fx:id="balance" text="–" styleClass="num-big"/>
+                                                                                    <Button fx:id="loadFunds" text="Load funds…" styleClass="small" minWidth="-Infinity"/>
                                                                                 </children>
                                                                             </VBox>
                                                                             <VBox spacing="6" styleClass="card" minWidth="210">

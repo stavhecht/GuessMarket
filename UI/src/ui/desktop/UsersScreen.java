@@ -88,6 +88,8 @@ class UsersScreen extends HBox {
     private final Label ownerOf = Widgets.pill("", "mark");
     private final Label summary = Widgets.faint("");
     private final Label balance = Widgets.label(Widgets.NONE, "num-big");
+    /** The dedicated action for money in: on the card that shows the money. */
+    private final Button loadFunds = Widgets.button("Load funds…", "small");
     private final Label potential = Widgets.label(Widgets.NONE, "num-big");
     private final Label potentialDelta = Widgets.label("", "mono");
 
@@ -275,7 +277,10 @@ class UsersScreen extends HBox {
         // for a name and the summary is what truncates when the window is narrow.
         who.setMinWidth(150);
 
-        VBox balanceCard = Widgets.card(Widgets.tiny("account balance"), balance);
+        // The button holds its label: this card is the narrowest thing in the row.
+        loadFunds.setMinWidth(Region.USE_PREF_SIZE);
+        loadFunds.setOnAction(action -> app.loadFunds());
+        VBox balanceCard = Widgets.card(Widgets.tiny("account balance"), balance, loadFunds);
         balanceCard.setMinWidth(170);
 
         VBox potentialCard = Widgets.card(Widgets.tiny("potential outcome"),
@@ -469,6 +474,7 @@ class UsersScreen extends HBox {
 
     private void showAccount(UserView user) {
         selectedUser = user == null ? null : user.name();
+        loadFunds.setDisable(user == null);
         if (user == null) {
             name.setText(Widgets.NONE);
             ownerOf.setVisible(false);

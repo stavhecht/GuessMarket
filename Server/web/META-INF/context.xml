@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Nothing outlives the server. The market itself is in memory and dies with it, but
+     Tomcat by default writes live sessions to disk on shutdown and reads them back on
+     start, so a client's session (and the name it carries) would reappear in front of an
+     engine that no longer knows the user. An empty pathname switches that off. -->
+<Context>
+    <Manager pathname=""/>
+</Context>

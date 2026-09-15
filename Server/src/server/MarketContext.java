@@ -42,7 +42,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class MarketContext implements ServletContextListener, HttpSessionListener {
 
     /** What a user who has never been here before starts with. */
-    public static final int STARTING_CASH = 1000;
+    public static final int STARTING_CASH = 0;
 
     /** The session attribute holding the logged-in user's name, as the engine spells it. */
     public static final String USER = "user";

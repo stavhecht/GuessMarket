@@ -15,6 +15,7 @@ import engine.dto.SettlementResult;
 import engine.dto.UserView;
 import engine.exception.EventClosedException;
 import engine.exception.InsufficientFundsException;
+import engine.exception.InvalidAmountException;
 import engine.exception.InvalidEventException;
 import engine.exception.InvalidFileException;
 import engine.exception.InvalidOptionException;
@@ -585,6 +586,40 @@ public class MarketEngine implements Market {
     public UserView getAccount(String userName) {
         requireFileLoaded();
         return buildUserView(eventManager.getUser(userName));
+    }
+
+    /**
+     * Adds {@code amount} to the selected user's balance.
+     *
+     * <p>This is the one deposit that no other account pays for. Everything else that moves
+     * money in the engine moves it between users and event accounts, so the market's total
+     * is otherwise constant; a load is money arriving from outside, which is what the
+     * exercise asks for and why it is a command of its own rather than a side effect of
+     * anything.
+     *
+     * @throws InvalidAmountException if the amount is not a positive, finite number
+     */
+    @Override
+    public UserView loadFunds(double amount) {
+        requireFileLoaded();
+        return loadFundsAs(requireSelectedUser(), amount);
+    }
+
+    /** {@link #loadFunds(double)} as a named user, for a server acting on a client's behalf. */
+    public UserView loadFunds(String userName, double amount) {
+        requireFileLoaded();
+        return loadFundsAs(eventManager.getUser(userName), amount);
+    }
+
+    private UserView loadFundsAs(User user, double amount) {
+        if (Double.isNaN(amount) || Double.isInfinite(amount)) {
+            throw new InvalidAmountException("The amount to load must be a number.");
+        }
+        if (amount <= 0) {
+            throw new InvalidAmountException("The amount to load must be greater than 0.");
+        }
+        user.deposit(amount);
+        return buildUserView(user);
     }
 
     @Override

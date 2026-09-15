@@ -48,6 +48,14 @@ public interface Market {
 
     PurchaseQuote quoteParticipation(int eventId, int optionIndex, long shares);
 
+    /**
+     * Puts {@code amount} into the current user's account, from nowhere: the one way money
+     * enters the market that no other account pays for.
+     *
+     * @return the account after the deposit
+     */
+    UserView loadFunds(double amount);
+
     PurchaseResult participate(int eventId, int optionIndex, long shares);
 
     OrderResult placeOrder(int eventId, int optionIndex, OrderSide side, double price, long quantity);

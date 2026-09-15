@@ -5,6 +5,7 @@ import api.CreateEventRequest;
 import api.Endpoints;
 import api.ErrorBody;
 import api.Json;
+import api.LoadFundsRequest;
 import api.LoginRequest;
 import api.MarketSnapshot;
 import api.OrderRequest;
@@ -74,8 +75,13 @@ import java.util.function.Consumer;
  */
 public class RemoteMarket implements Market {
 
-    /** How often the poller asks the server whether anything has changed. */
-    public static final long POLL_MILLIS = 2000;
+    /**
+     * How often the poller asks the server whether anything has changed. The exercise
+     * allows up to two seconds and calls half a second reasonable; the fetch is one GET
+     * answered from memory, and an unchanged answer costs the window nothing, so it is
+     * the reasonable one.
+     */
+    public static final long POLL_MILLIS = 500;
 
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
     private static final MediaType XML = MediaType.get("application/xml");
@@ -283,7 +289,28 @@ public class RemoteMarket implements Market {
         return call(new Request.Builder().url(url).get().build(), PurchaseQuote.class);
     }
 
+    /** The logged-in user's own account, out of the snapshot; {@code null} before the first fetch. */
+    public UserView account() {
+        MarketSnapshot now = snapshot;
+        if (now == null || userName == null) {
+            return null;
+        }
+        for (UserView user : now.users()) {
+            if (user.name().equals(userName)) {
+                return user;
+            }
+        }
+        return null;
+    }
+
     // --- Market: the commands, each followed by a reload ---
+
+    @Override
+    public UserView loadFunds(double amount) {
+        UserView account = call(post(Endpoints.FUNDS, new LoadFundsRequest(amount)), UserView.class);
+        reload();
+        return account;
+    }
 
     @Override
     public PurchaseResult participate(int eventId, int optionIndex, long shares) {

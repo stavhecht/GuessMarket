@@ -2,13 +2,16 @@ package ui.desktop;
 
 import engine.dto.EventView;
 import engine.dto.SettlementResult;
+import engine.dto.UserView;
 import javafx.scene.control.ChoiceDialog;
+import javafx.scene.control.TextInputDialog;
 
 import java.util.Optional;
 
 /**
- * The two dialogs a window opens on the market: the create-event form and the question
- * of which option won. Written against {@link Host} so that both windows share them.
+ * The dialogs a window opens on the market: the create-event form, the question of which
+ * option won, and the question of how much to load into an account. Written against
+ * {@link Host} so that both windows share them.
  */
 public final class EventDialogs {
 
@@ -61,6 +64,38 @@ public final class EventDialogs {
                     result.eventId(), result.winningOptionName(),
                     Widgets.money(result.totalPaidToWinners()), Widgets.money(result.commissionMoved()),
                     returned);
+        });
+    }
+
+    /**
+     * Asks how much, then loads it into the current user's account.
+     *
+     * <p>The figure is read inside {@link Host#perform}, the way the trade form reads its
+     * quantity, so a sum that is not a number is reported in the status bar like any
+     * other refusal rather than being argued about on the dialog.
+     */
+    public static void loadFunds(Host host) {
+        String user = host.engine().getCurrentUserName();
+        if (user == null) {
+            host.report("Select a user first: funds are loaded into somebody's account.", true);
+            return;
+        }
+        TextInputDialog dialog = new TextInputDialog("100");
+        dialog.setTitle("Load funds");
+        dialog.setHeaderText("Load funds into " + user + "'s account");
+        dialog.setContentText("Amount");
+        dialog.initOwner(host.window());
+        host.theme().applyTo(dialog.getDialogPane());
+
+        Optional<String> typed = dialog.showAndWait();
+        if (typed.isEmpty()) {
+            return;
+        }
+        host.perform(() -> {
+            double amount = Shell.readPositiveDouble(typed.get(), "amount");
+            UserView account = host.engine().loadFunds(amount);
+            return String.format("Loaded %s into %s's account; the balance is now %s.",
+                    Widgets.money(amount), account.name(), Widgets.money(account.balance()));
         });
     }
 }

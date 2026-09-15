@@ -186,6 +186,9 @@ public abstract class Shell extends Application implements Host {
         usersScreen = new UsersScreen(this, singleUser());
         eventsTab.setContent(workspace(eventsScreen));
         usersTab.setContent(workspace(usersScreen));
+        if (singleUser()) {
+            usersTab.setText("Account");    // one account, the logged-in user's: not a list of users
+        }
         tabs.getSelectionModel().selectedItemProperty().addListener((observable, was, now) -> refresh());
 
         usersScreen.animateOnlyWhile(usersTab.selectedProperty());
@@ -504,6 +507,16 @@ public abstract class Shell extends Application implements Host {
     @Override
     public void closeEvent(EventView event) {
         EventDialogs.close(this, event);
+    }
+
+    @Override
+    public void loadFunds() {
+        EventDialogs.loadFunds(this);
+    }
+
+    /** A sum as the screens write it, for a subclass's own label in the bar. */
+    protected static String money(double amount) {
+        return Widgets.money(amount);
     }
 
     /** Rereads everything on screen from the market. Cheap, and the only way state gets stale. */

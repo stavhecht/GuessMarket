@@ -18,6 +18,8 @@ public final class Endpoints {
     public static final String LOGIN = "/api/login";
     public static final String LOGOUT = "/api/logout";
     public static final String ME = "/api/me";
+    /** POST puts money into the logged-in user's account, from a {@link LoadFundsRequest}. */
+    public static final String FUNDS = "/api/me/funds";
     public static final String USERS = "/api/users";
 
     /** Everything the screens read, in one response and one consistent view. */

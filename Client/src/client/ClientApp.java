@@ -1,6 +1,7 @@
 package client;
 
 import engine.dto.EventView;
+import engine.dto.UserView;
 import engine.exception.EngineException;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -82,9 +83,17 @@ public class ClientApp extends Shell {
         whileIdle.addAll(List.of(loadFile, logout));
     }
 
+    /**
+     * Who this window is, and what they have: the balance sits in the status line so it can
+     * be read from the Events tab too, where the purchases that move it are made. It is
+     * rewritten on every refresh, which the poll drives, so it follows other clients' trades
+     * into this account as well as this window's own.
+     */
     @Override
     protected String actingAsText() {
-        return "Logged in as " + market().getCurrentUserName() + " · " + market().base();
+        UserView me = market().account();
+        String balance = me == null ? "" : " · balance " + money(me.balance());
+        return "Logged in as " + market().getCurrentUserName() + balance + " · " + market().base();
     }
 
     @Override

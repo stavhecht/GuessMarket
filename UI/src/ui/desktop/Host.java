@@ -42,6 +42,9 @@ public interface Host {
     /** Asks which option won, then settles {@code event} on it. */
     void closeEvent(EventView event);
 
+    /** Asks how much, then loads it into the current user's account. */
+    void loadFunds();
+
     /** The window, for a dialog to be owned by. */
     Window window();
 
