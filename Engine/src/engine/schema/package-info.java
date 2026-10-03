@@ -9,7 +9,10 @@
  * <p>Element and attribute names are copied from the schema letter for letter, typos
  * included: {@code comision}, {@code GM-mareket-maker}, the order book's {@code inital}.
  * A file is matched by the name it actually uses, so correcting the spelling here would
- * only stop it being read.
+ * only stop it being read. Each of the three is also read under its correct spelling
+ * ({@code commission}, {@code GM-market-maker}, {@code initial}), because files written by
+ * hand tend to use it and were being refused, or worse, half-read: a correctly spelled
+ * {@code initial} used to arrive as 0 and open the order book empty without a word.
  *
  * <p>These classes describe the file and nothing else: they hold no rules, do no
  * checking, and know nothing about the engine's own model. Whether a file makes sense

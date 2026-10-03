@@ -52,8 +52,12 @@ public class XmlEvent {
     private String description;
 
     /** Spelled as the schema spells it. */
-    @XmlElement(name = "comision", required = true)
+    @XmlElement(name = "comision")
     private XmlCommission commission;
+
+    /** The same element spelled correctly, which files written by hand often use; see {@link #getCommission}. */
+    @XmlElement(name = "commission")
+    private XmlCommission commissionSpelledRight;
 
     /** The adapter applies to each {@code <GM-option>} in the list, not to the list. */
     @XmlElementWrapper(name = "GM-options", required = true)
@@ -76,8 +80,12 @@ public class XmlEvent {
         return description;
     }
 
+    /**
+     * The commission under either spelling, {@code <comision>} or {@code <commission>};
+     * {@code null} when the file has neither. The schema's spelling wins if it has both.
+     */
     public XmlCommission getCommission() {
-        return commission;
+        return commission != null ? commission : commissionSpelledRight;
     }
 
     /** Never {@code null}: an absent or empty {@code <GM-options>} reads as no options. */
