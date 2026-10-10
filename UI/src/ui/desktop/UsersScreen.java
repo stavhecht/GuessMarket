@@ -30,6 +30,7 @@ import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
+import javafx.scene.control.Tooltip;
 import javafx.util.StringConverter;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -88,6 +89,12 @@ class UsersScreen extends HBox {
     private final Label ownerOf = Widgets.pill("", "mark");
     private final Label summary = Widgets.faint("");
     private final Label balance = Widgets.label(Widgets.NONE, "num-big");
+    /**
+     * What of the balance can be spent: the figure a purchase or an order is checked
+     * against, so a refusal quoting it is not a surprise. It differs from the balance by
+     * exactly what the summary line calls reserved.
+     */
+    private final Label available = Widgets.label(Widgets.NONE, "kv-val");
     /** The dedicated action for money in: on the card that shows the money. */
     private final Button loadFunds = Widgets.button("Load funds…", "small");
     private final Label potential = Widgets.label(Widgets.NONE, "num-big");
@@ -152,6 +159,9 @@ class UsersScreen extends HBox {
     private final Label tradeTitle = Widgets.label("No event selected", "h-section");
     private final Label tradeStatus = Widgets.pill("", "off");
     private final Button closeEvent = Widgets.button("Close event…", "danger", "small");
+    /** The Events screen's button of the same name, for the event this panel is showing. */
+    private final Button cancelOrder = Widgets.button("Cancel my last order", "small");
+    private final Tooltip cancelOrderTip = new Tooltip();
     private final Label tradeDescription = Widgets.muted("");
     private final OptionRow[] optionRows = { new OptionRow(), new OptionRow() };
     private final Label tradeCommission = Widgets.label(Widgets.NONE, "kv-val");
@@ -166,7 +176,12 @@ class UsersScreen extends HBox {
     private final Label sharesCost = Widgets.label(Widgets.NONE, "kv-val");
     private final Label commission = Widgets.label(Widgets.NONE, "kv-val");
     private final Label totalCost = Widgets.label(Widgets.NONE, "kv-val");
-    private final Label balanceAfter = Widgets.label(Widgets.NONE, "kv-val");
+    /**
+     * What would be left to spend after this purchase: the available cash, not the balance,
+     * since that is what the engine checks it against. Red when it would go below zero,
+     * which is the purchase the engine is about to refuse.
+     */
+    private final Label availableAfter = Widgets.label(Widgets.NONE, "kv-val");
     private final Button buy = Widgets.button("Buy", "primary");
 
     /**
@@ -242,9 +257,17 @@ class UsersScreen extends HBox {
         HBox footer = Widgets.row(8, Widgets.tiny("total held"), Widgets.grower(), totalHeld);
         footer.getStyleClass().add("footer-strip");
 
+        // Beside the list it adds to, as Create event sits beside the events. This is what
+        // lets a market be built with no file at all: a user to act as, then their events.
+        Button addUser = Widgets.tip(Widgets.button("Add user", "small"),
+                "Opens a new account in this market with the starting cash you give it, "
+                        + "and acts as them, so they can create events straight away.");
+        addUser.setMinWidth(Region.USE_PREF_SIZE);
+        addUser.setOnAction(action -> app.addUser());
+
         VBox body = new VBox(users, footer);
         VBox.setVgrow(users, Priority.ALWAYS);
-        return Widgets.panel(Widgets.panelHead("Users", userCount), body);
+        return Widgets.panel(Widgets.panelHead("Users", userCount, Widgets.gap(4), addUser), body);
     }
 
     // --- the right column ---
@@ -280,7 +303,8 @@ class UsersScreen extends HBox {
         // The button holds its label: this card is the narrowest thing in the row.
         loadFunds.setMinWidth(Region.USE_PREF_SIZE);
         loadFunds.setOnAction(action -> app.loadFunds());
-        VBox balanceCard = Widgets.card(Widgets.tiny("account balance"), balance, loadFunds);
+        HBox availableRow = Widgets.row(6, Widgets.label("available cash", "kv-key"), Widgets.grower(), available);
+        VBox balanceCard = Widgets.card(Widgets.tiny("account balance"), balance, availableRow, loadFunds);
         balanceCard.setMinWidth(170);
 
         VBox potentialCard = Widgets.card(Widgets.tiny("potential outcome"),
@@ -344,9 +368,17 @@ class UsersScreen extends HBox {
 
     private VBox tradePanel() {
         HBox head = Widgets.row(8, tradeTitle, tradeStatus, Widgets.grower(),
-                Widgets.filter("event", eventPicker, 210), closeEvent);
+                Widgets.filter("event", eventPicker, 210), cancelOrder, closeEvent);
         head.getStyleClass().add("panel-head");
         wireEventPicker();
+        cancelOrder.setMinWidth(Region.USE_PREF_SIZE);
+        cancelOrder.setTooltip(cancelOrderTip);
+        cancelOrder.setOnAction(action -> {
+            if (tradeEventId != null) {
+                int eventId = tradeEventId;
+                app.perform(() -> MarketData.describe(app.engine().cancelLastOrder(eventId)));
+            }
+        });
         closeEvent.setOnAction(action -> {
             EventView event = eventById(tradeEventId);
             if (event == null) {
@@ -397,7 +429,7 @@ class UsersScreen extends HBox {
                 Widgets.row(8, Widgets.label("Shares cost", "kv-key"), Widgets.grower(), sharesCost),
                 Widgets.row(8, Widgets.label("Commission", "kv-key"), Widgets.grower(), commission),
                 Widgets.row(8, Widgets.label("Total", "kv-key"), Widgets.grower(), totalCost),
-                Widgets.row(8, Widgets.label("Balance after", "kv-key"), Widgets.grower(), balanceAfter));
+                Widgets.row(8, Widgets.label("Available after", "kv-key"), Widgets.grower(), availableAfter));
 
         VBox form = Widgets.card(formTitle,
                 Widgets.row(6, optionButtons[0], optionButtons[1]),
@@ -480,6 +512,7 @@ class UsersScreen extends HBox {
             ownerOf.setVisible(false);
             summary.setText("Load an events file to see accounts.");
             balanceTicker.clear();
+            Widgets.followMoney(available, null);
             potentialTicker.clear();
             potentialDeltaTicker.clear("");     // the delta has no dash of its own
             allPositions = List.of();
@@ -523,6 +556,7 @@ class UsersScreen extends HBox {
         figures[1].set(outcome - user.balance());
 
         balanceTicker.follow(app.live().balance(user.name()));
+        Widgets.followMoney(available, app.live().available(user.name()));
         potentialTicker.follow(figures[0]);
         potentialDeltaTicker.follow(figures[1]);
 
@@ -771,6 +805,8 @@ class UsersScreen extends HBox {
         boolean closable = MarketData.canClose(app.engine(), event);
         closeEvent.setVisible(closable);
         closeEvent.setManaged(closable);
+        cancelOrder.setVisible(false);
+        cancelOrder.setManaged(false);
         for (ToggleButton button : optionButtons) {
             button.setDisable(!open);
         }
@@ -829,6 +865,11 @@ class UsersScreen extends HBox {
             }
         } else {
             OrderBookStatusView status = app.engine().getOrderBookStatus(event.id());
+            String mine = MarketData.lastOwnOrder(status, app.engine().getCurrentUserName());
+            cancelOrder.setVisible(mine != null);
+            cancelOrder.setManaged(mine != null);
+            cancelOrderTip.setText(mine == null ? "" : "Withdraws order " + mine
+                    + " and gives back what it set aside.");
             for (int i = 0; i < optionRows.length; i++) {
                 OptionBookView option = status.options().get(i);
                 optionRows[i].show(option.name(), app.live().price(event.id(), i),
@@ -871,7 +912,12 @@ class UsersScreen extends HBox {
             sharesCost.setText(Widgets.money(cost));
             commission.setText(Widgets.money(fee));
             totalCost.setText(Widgets.money(cost + fee));
-            balanceAfter.setText(Widgets.money(currentBalance() - cost - fee));
+            double after = currentAvailable() - cost - fee;
+            availableAfter.setText(Widgets.money(after));
+            availableAfter.getStyleClass().remove("down");
+            if (after < 0) {
+                availableAfter.getStyleClass().add("down");
+            }
             buy.setText("Buy " + Widgets.shares(shares) + " of " + event.optionNames().get(chosenOption()));
         } catch (EngineException e) {
             blankBreakdown();
@@ -885,14 +931,14 @@ class UsersScreen extends HBox {
         }
         int optionIndex = chosenOption();
         app.perform(() -> {
-            long shares = Shell.readPositiveLong(quantity.getText(), "shares");
+            long shares = Shell.readLong(quantity.getText(), "shares");
             if (MarketData.isLmsr(event)) {
                 PurchaseResult result = app.engine().participate(event.id(), optionIndex, shares);
                 return String.format("Bought %s of %s for %s (commission %s).",
                         Widgets.shares(result.sharesBought()), result.optionName(),
                         Widgets.money(result.sharesCost()), Widgets.money(result.commission()));
             }
-            double atPrice = Shell.readPositiveDouble(limit.getText(), "price");
+            double atPrice = Shell.readDouble(limit.getText(), "price");
             OrderResult result = app.engine()
                     .placeOrder(event.id(), optionIndex, OrderSide.BUY, atPrice, shares);
             return String.format("Order #%d: %s filled, %s resting at %s.",
@@ -905,7 +951,8 @@ class UsersScreen extends HBox {
         sharesCost.setText(Widgets.NONE);
         commission.setText(Widgets.NONE);
         totalCost.setText(Widgets.NONE);
-        balanceAfter.setText(Widgets.NONE);
+        availableAfter.setText(Widgets.NONE);
+        availableAfter.getStyleClass().remove("down");
         buy.setText("Buy");
     }
 
@@ -913,9 +960,9 @@ class UsersScreen extends HBox {
         return optionButtons[1].isSelected() ? 1 : 0;
     }
 
-    private double currentBalance() {
+    private double currentAvailable() {
         UserView user = users.getSelectionModel().getSelectedItem();
-        return user == null ? 0 : user.balance();
+        return user == null ? 0 : user.availableCash();
     }
 
     private EventView eventById(Integer eventId) {

@@ -1,5 +1,6 @@
 package client;
 
+import api.CancelOrderRequest;
 import api.CloseRequest;
 import api.CreateEventRequest;
 import api.Endpoints;
@@ -10,6 +11,7 @@ import api.LoginRequest;
 import api.MarketSnapshot;
 import api.OrderRequest;
 import api.ParticipateRequest;
+import engine.dto.CancelResult;
 import engine.dto.EventStatusView;
 import engine.dto.EventView;
 import engine.dto.OrderBookStatusView;
@@ -324,6 +326,14 @@ public class RemoteMarket implements Market {
     public OrderResult placeOrder(int eventId, int optionIndex, OrderSide side, double price, long quantity) {
         OrderResult result = call(post(Endpoints.ORDER,
                 new OrderRequest(eventId, optionIndex, side.name(), price, quantity)), OrderResult.class);
+        reload();
+        return result;
+    }
+
+    @Override
+    public CancelResult cancelLastOrder(int eventId) {
+        CancelResult result = call(post(Endpoints.CANCEL_ORDER, new CancelOrderRequest(eventId)),
+                CancelResult.class);
         reload();
         return result;
     }

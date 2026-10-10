@@ -33,6 +33,8 @@ public final class Endpoints {
     public static final String QUOTE = "/api/events/quote";
     public static final String PARTICIPATE = "/api/events/participate";
     public static final String ORDER = "/api/events/order";
+    /** POST withdraws the logged-in user's last waiting order, from a {@link CancelOrderRequest}. */
+    public static final String CANCEL_ORDER = "/api/events/order/cancel";
     public static final String CLOSE = "/api/events/close";
     public static final String UPLOAD = "/api/events/upload";
 

@@ -16,7 +16,8 @@ public class ParticipateServlet extends ApiServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         write(req, resp, (engine, user) -> {
             ParticipateRequest purchase = body(req, ParticipateRequest.class);
-            return engine.participate(user, purchase.eventId(), purchase.optionIndex(), purchase.shares());
+            return engine.participate(user, required(purchase.eventId(), "eventId"),
+                    required(purchase.optionIndex(), "optionIndex"), required(purchase.shares(), "shares"));
         });
     }
 }

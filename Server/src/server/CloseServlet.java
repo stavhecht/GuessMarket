@@ -16,7 +16,8 @@ public class CloseServlet extends ApiServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         write(req, resp, (engine, user) -> {
             CloseRequest close = body(req, CloseRequest.class);
-            return engine.closeEvent(user, close.eventId(), close.winningOptionIndex());
+            return engine.closeEvent(user, required(close.eventId(), "eventId"),
+                    required(close.winningOptionIndex(), "winningOptionIndex"));
         });
     }
 }

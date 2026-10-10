@@ -1,11 +1,13 @@
 package ui.desktop;
 
+import engine.dto.CancelResult;
 import engine.dto.EventStatusView;
 import engine.dto.EventView;
 import engine.dto.HoldingView;
 import engine.dto.OptionBookView;
 import engine.dto.OptionView;
 import engine.dto.OrderBookStatusView;
+import engine.dto.OrderLineView;
 import engine.dto.UserView;
 import engine.model.BookTrade;
 import engine.model.Trade;
@@ -91,6 +93,46 @@ final class MarketData {
                 && isActive(event)
                 && event.marketMaker() != null
                 && event.marketMaker().equals(engine.getCurrentUserName());
+    }
+
+    /**
+     * The acting user's most recent order still waiting in this book, in words, or
+     * {@code null} if they have none: what the cancel button would withdraw.
+     *
+     * <p>The same pick {@code MarketEngine.cancelLastOrder} makes, the highest sequence among
+     * this user's resting orders, so the button names the order the engine will cancel and
+     * is hidden when the engine would refuse.
+     */
+    static String lastOwnOrder(OrderBookStatusView status, String user) {
+        if (status == null || status.closed() || user == null) {
+            return null;
+        }
+        OrderLineView last = null;
+        String side = null;
+        String option = null;
+        for (OptionBookView book : status.options()) {
+            for (int sideIndex = 0; sideIndex < 2; sideIndex++) {
+                for (OrderLineView line : sideIndex == 0 ? book.bids() : book.asks()) {
+                    if (line.userName().equals(user) && (last == null || line.sequence() > last.sequence())) {
+                        last = line;
+                        side = sideIndex == 0 ? "buy" : "sell";
+                        option = book.name();
+                    }
+                }
+            }
+        }
+        return last == null ? null : String.format("#%d: %s %s of %s at %s", last.sequence(), side,
+                Widgets.shares(last.remaining()), option, Widgets.price(last.price()));
+    }
+
+    /** What a cancel did, for the status bar: which order, and what came back. */
+    static String describe(CancelResult result) {
+        String order = String.format("Cancelled order #%d: %s %s of %s at %s.", result.sequence(),
+                result.side().equals("BUY") ? "buy" : "sell", Widgets.shares(result.cancelled()),
+                result.optionName(), Widgets.price(result.price()));
+        return result.side().equals("BUY")
+                ? order + " " + Widgets.money(result.cashReleased()) + " is available to spend again."
+                : order + " Those shares can be sold again.";
     }
 
     static String methodLabel(EventView event) {

@@ -759,9 +759,9 @@
                                                                                             </HBox>
                                                                                             <HBox spacing="8" alignment="CENTER_LEFT">
                                                                                                 <children>
-                                                                                                    <Label text="Balance after" styleClass="kv-key"/>
+                                                                                                    <Label text="Available after" styleClass="kv-key"/>
                                                                                                     <Region HBox.hgrow="ALWAYS"/>
-                                                                                                    <Label fx:id="balanceAfter" text="–" styleClass="kv-val"/>
+                                                                                                    <Label fx:id="availableAfter" text="–" styleClass="kv-val"/>
                                                                                                 </children>
                                                                                             </HBox>
                                                                                         </children>

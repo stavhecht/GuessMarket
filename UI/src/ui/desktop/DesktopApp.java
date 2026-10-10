@@ -1,17 +1,29 @@
 package ui.desktop;
 
+import engine.dto.UserView;
 import engine.service.MarketEngine;
+import javafx.application.Platform;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.Dialog;
+import javafx.scene.control.TextField;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
- * The desktop front end of exercise 2: an admin view onto one loaded market, with the
- * engine in the same process.
+ * The desktop front end of exercise 2: an admin view onto one market, with the engine in
+ * the same process.
  *
  * <p>The window itself is {@link Shell}. What this class adds is what only a local engine
  * can do: load an events file from a path, replacing the market, and save the whole session
  * to a {@code .gm} file and open it again, with the look the window was wearing riding
- * along. The {@code fx:controller} attribute of {@code DesktopApp.fxml} names this class,
+ * along; and open accounts by hand.
+ *
+ * <p><b>The window opens on an empty market, not on nothing.</b> A file is one way to fill
+ * it; the other is to add a user, act as them and create events, which needs no file at
+ * all. Loading a file later replaces whatever was built that way, as it replaces any
+ * market. The {@code fx:controller} attribute of {@code DesktopApp.fxml} names this class,
  * which is where Scene Builder reads the {@code fx:id}s from; the fields they fill are the
  * shell's, and the client window uses the same file.
  */
@@ -49,7 +61,7 @@ public class DesktopApp extends Shell {
     @Override
     protected void wireFileBar() {
         loadFile.setOnAction(action -> chooseFile("Load events file", "XML files", "*.xml", false)
-                .ifPresent(file -> runWithProgress("Reading", file, () -> {
+                .ifPresent(file -> runWithProgress("Reading", file, true, () -> {
                     engine().loadEventsFile(file.getPath());
                     loadedFile = file.getPath();
                     return "Loaded " + file.getName() + ".";
@@ -74,12 +86,21 @@ public class DesktopApp extends Shell {
     @Override
     protected String actingAsText() {
         String user = engine().getCurrentUserName();
-        return user == null ? "Nobody selected. Pick one on the Users tab" : "Acting as " + user;
+        if (user != null) {
+            return "Acting as " + user;
+        }
+        return engine().getUsers().isEmpty()
+                ? "No users yet. Add one on the Users tab"
+                : "Nobody selected. Pick one on the Users tab";
     }
 
+    /**
+     * Whether a file is behind the market, rather than whether there is a market: there
+     * always is one now, and one built by hand has no file to be called loaded.
+     */
     @Override
     protected String fileStateText() {
-        return engine().isFileLoaded() ? "LOADED" : "NO FILE LOADED";
+        return loadedFile != null ? "LOADED" : "NO FILE LOADED";
     }
 
     @Override
@@ -87,12 +108,66 @@ public class DesktopApp extends Shell {
         filePath.setText(loadedFile == null ? "" : loadedFile);
     }
 
+    /**
+     * Opens the empty market the window starts on, unless {@code Main} handed over an engine
+     * that already has one, and says what can be done with it.
+     */
     @Override
     protected void opened() {
+        if (!engine().isFileLoaded()) {
+            engine().openEmptyMarket();
+        }
         refresh();
-        if (engine().isFileLoaded()) {
+        if (loadedFile == null && engine().getEvents().isEmpty()) {
+            report("No file loaded. Load an events file, or add a user on the Users tab "
+                    + "and create events yourself.", false);
+        } else {
             report(engine().getEvents().size() + " events loaded.", false);
         }
+    }
+
+    // --- accounts ---
+
+    /**
+     * Asks for a name and a starting balance, opens that account, and acts as it.
+     *
+     * <p>The form reads the figure as a number and nothing more: a blank name, a negative
+     * balance and a name somebody already has are the engine's to refuse, and {@link #perform}
+     * paints its sentence in the status bar like any other refusal. Acting as the new user
+     * straight away is what makes "add a user, then create an event" two clicks rather than
+     * three, and it is the {@code selectUser} the Users tab would have issued anyway.
+     *
+     * <p>The starting cash is money arriving from outside, exactly as a file's
+     * {@code initial-cash} is, so the market's total is this plus whatever it was.
+     */
+    @Override
+    public void addUser() {
+        TextField name = new TextField();
+        name.setPromptText("Their name");
+        TextField cash = Widgets.quantityField("1000", "1000", 120);
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Add user");
+        dialog.setHeaderText("A new account in this market");
+        dialog.getDialogPane().setContent(Widgets.column(12,
+                Widgets.column(4, Widgets.tiny("name"), name),
+                Widgets.column(4, Widgets.tiny("starting cash"), cash)));
+        ButtonType add = new ButtonType("Add", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().setAll(add, ButtonType.CANCEL);
+        dialog.initOwner(window());
+        theme().applyTo(dialog.getDialogPane());
+        Platform.runLater(name::requestFocus);
+
+        Optional<ButtonType> answer = dialog.showAndWait();
+        if (answer.isEmpty() || answer.get() != add) {
+            return;
+        }
+        perform(() -> {
+            UserView added = engine().registerUser(name.getText(), readInt(cash.getText(), "starting cash"));
+            engine().selectUser(added.name());
+            return String.format("Added %s with %s; now acting as %s.",
+                    added.name(), Widgets.money(added.balance()), added.name());
+        });
     }
 
     // --- what a session carries about the window ---

@@ -92,7 +92,7 @@ public final class EventDialogs {
             return;
         }
         host.perform(() -> {
-            double amount = Shell.readPositiveDouble(typed.get(), "amount");
+            double amount = Shell.readDouble(typed.get(), "amount");
             UserView account = host.engine().loadFunds(amount);
             return String.format("Loaded %s into %s's account; the balance is now %s.",
                     Widgets.money(amount), account.name(), Widgets.money(account.balance()));

@@ -15,6 +15,7 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableView;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -80,6 +81,10 @@ class EventsScreen extends HBox {
     private final HBox titleRow;
     private final Label statusSlot = Widgets.pill("", "off");
     private final Button closeEvent = Widgets.button("Close event…", "danger", "small");
+    /** Shown only while the acting user has an order waiting in the selected book. */
+    private final Button cancelOrder = Widgets.button("Cancel my last order", "small");
+    /** Names the order the button would withdraw, which changes with every order placed. */
+    private final Tooltip cancelOrderTip = new Tooltip();
 
     /** Built in {@link #buildEventList()}, which the constructor runs. */
     private Button create;
@@ -130,7 +135,7 @@ class EventsScreen extends HBox {
         this.app = app;
         this.lmsrPane = new LmsrPane(app);
         this.orderBookPane = new OrderBookPane(app);
-        this.titleRow = Widgets.row(8, title, number, statusSlot, Widgets.grower(), closeEvent);
+        this.titleRow = Widgets.row(8, title, number, statusSlot, Widgets.grower(), cancelOrder, closeEvent);
 
         eventCount.textProperty().bind(eventTotal.asString());
         shown.textProperty().bind(shownText);
@@ -150,7 +155,7 @@ class EventsScreen extends HBox {
 
     private VBox buildEventList() {
         create = Widgets.tip(Widgets.button("Create event", "small"),
-                "Adds an event to the loaded market. You become its market maker, "
+                "Adds an event to this market, with or without a file behind it. You become its market maker, "
                         + "so an order book's initial investment comes out of your balance.");
         create.setOnAction(action -> app.createEvent());
         create.setDisable(true);    // until a market is loaded and somebody is acting
@@ -216,6 +221,15 @@ class EventsScreen extends HBox {
                 app.report("Select the event to close first.", true);
             } else {
                 app.closeEvent(event);
+            }
+        });
+
+        cancelOrder.setMinWidth(Region.USE_PREF_SIZE);
+        cancelOrder.setTooltip(cancelOrderTip);
+        cancelOrder.setOnAction(action -> {
+            if (selectedId != null) {
+                int eventId = selectedId;
+                app.perform(() -> MarketData.describe(app.engine().cancelLastOrder(eventId)));
             }
         });
 
@@ -350,6 +364,7 @@ class EventsScreen extends HBox {
         show(orderBookPane, false);
         // Only the event's Market Maker can close it, so nobody else is shown the button.
         show(closeEvent, MarketData.canClose(app.engine(), event));
+        show(cancelOrder, false);
 
         if (event == null) {
             title.setText("No event selected");
@@ -396,6 +411,10 @@ class EventsScreen extends HBox {
             OrderBookStatusView status = app.engine().getOrderBookStatus(event.id());
             orderBookPane.show(event, status);
             show(orderBookPane, true);
+            String mine = MarketData.lastOwnOrder(status, app.engine().getCurrentUserName());
+            show(cancelOrder, mine != null);
+            cancelOrderTip.setText(mine == null ? "" : "Withdraws order " + mine
+                    + " and gives back what it set aside.");
             lines = MarketData.lines(status);
             methodNote.setText("d = " + trimmed(status.baseValue())
                     + (status.allowMint() ? " · minting allowed" : " · no minting"));

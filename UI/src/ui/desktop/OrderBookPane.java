@@ -214,8 +214,8 @@ class OrderBookPane extends HBox {
 
         private void place(OrderSide side) {
             app.perform(() -> {
-                double atPrice = Shell.readPositiveDouble(limit.getText(), "price");
-                long shares = Shell.readPositiveLong(quantity.getText(), "shares");
+                double atPrice = Shell.readDouble(limit.getText(), "price");
+                long shares = Shell.readLong(quantity.getText(), "shares");
                 OrderResult result = app.engine().placeOrder(eventId, optionIndex, side, atPrice, shares);
                 return describe(result);
             });

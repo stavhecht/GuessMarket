@@ -1,5 +1,6 @@
 package engine.service;
 
+import engine.dto.CancelResult;
 import engine.dto.EventStatusView;
 import engine.dto.EventView;
 import engine.dto.OrderBookStatusView;
@@ -59,6 +60,12 @@ public interface Market {
     PurchaseResult participate(int eventId, int optionIndex, long shares);
 
     OrderResult placeOrder(int eventId, int optionIndex, OrderSide side, double price, long quantity);
+
+    /**
+     * Withdraws the current user's most recent order still waiting in an event's book, and
+     * gives back what it had set aside.
+     */
+    CancelResult cancelLastOrder(int eventId);
 
     SettlementResult closeEvent(int eventId, int winningOptionIndex);
 

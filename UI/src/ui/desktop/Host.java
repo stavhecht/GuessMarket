@@ -45,6 +45,12 @@ public interface Host {
     /** Asks how much, then loads it into the current user's account. */
     void loadFunds();
 
+    /**
+     * Asks for a name and a starting balance, then opens that account in the market. Only a
+     * window that lists every user offers it; a client's account is opened by logging in.
+     */
+    void addUser();
+
     /** The window, for a dialog to be owned by. */
     Window window();
 

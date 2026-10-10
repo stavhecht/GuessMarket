@@ -21,7 +21,7 @@ import java.util.List;
 
 /**
  * The form behind the Events screen's Create button: an event described the way the XSD
- * describes one, for the user who is acting to add to the market already loaded.
+ * describes one, for the user who is acting to add to the market, whether a file filled it or not.
  *
  * <p>Nothing here decides whether an event is legal. The form reads what was typed, turns the
  * numbers into numbers, and calls the engine, which owns every rule, the same rules
@@ -192,18 +192,18 @@ class CreateEventDialog extends Dialog<String> {
      */
     private String create(Market engine) {
         int commissionPercent =
-                Shell.readWholeNumber(commission.getText(), "commission percentage", 0);
+                Shell.readInt(commission.getText(), "commission percentage");
         CommissionMethod when = onClose.isSelected()
                 ? CommissionMethod.ON_CLOSE : CommissionMethod.PER_PURCHASE;
         List<String> options = List.of(optionA.getText(), optionB.getText());
 
         EventView made = lmsrMethod.isSelected()
                 ? engine.createLmsrEvent(name.getText(), description.getText(), commissionPercent,
-                        when, options, Shell.readPositiveDouble(b.getText(), "liquidity b"))
+                        when, options, Shell.readDouble(b.getText(), "liquidity b"))
                 : engine.createOrderBookEvent(name.getText(), description.getText(), commissionPercent,
                         when, options,
-                        Shell.readWholeNumber(initialInvestment.getText(), "initial investment", 0),
-                        Shell.readWholeNumber(baseValue.getText(), "base value", 1),
+                        Shell.readInt(initialInvestment.getText(), "initial investment"),
+                        Shell.readInt(baseValue.getText(), "base value"),
                         allowMint.isSelected());
 
         return String.format("Created event %d, '%s'. You are its market maker.",

@@ -6,6 +6,9 @@ import java.util.List;
  * The body of {@code POST /api/events}: an event typed into the form, the same fields
  * {@code MarketEngine.createLmsrEvent} / {@code createOrderBookEvent} take.
  *
+ * <p>Every figure is boxed, for the reason {@link ParticipateRequest} gives: a commission
+ * left out of the body is refused, not read as 0 percent.
+ *
  * @param commissionMethod {@code PER_PURCHASE} or {@code ON_CLOSE}, the names of {@link engine.model.CommissionMethod}
  * @param tradingMethod    {@code LMSR} or {@code ORDER_BOOK}, as {@link engine.dto.EventView#tradingMethod()} spells them
  * @param b                the LMSR liquidity; null for an order book
@@ -15,7 +18,7 @@ import java.util.List;
  */
 public record CreateEventRequest(String name,
                                  String description,
-                                 int commissionPercent,
+                                 Integer commissionPercent,
                                  String commissionMethod,
                                  List<String> optionNames,
                                  String tradingMethod,

@@ -30,6 +30,9 @@ public class User implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
+    /** Below this, a reservation is floating-point remainder rather than anything promised. */
+    private static final double RESERVATION_CRUMB = 1e-9;
+
     private final String name;
     private final int initialCash;
 
@@ -121,7 +124,7 @@ public class User implements Serializable {
 
     /** Gives money back that an order no longer needs: it filled cheaply, or was cancelled. */
     public void release(double amount) {
-        reservedCash -= amount;
+        reservedCash = settled(reservedCash - amount);
     }
 
     /**
@@ -129,8 +132,21 @@ public class User implements Serializable {
      * fall, so the available cash is unchanged: it was never available to begin with.
      */
     public void spendReserved(double amount) {
-        reservedCash -= amount;
+        reservedCash = settled(reservedCash - amount);
         balance -= amount;
+    }
+
+    /**
+     * A reservation that has been paid back or spent down to nothing, as exactly nothing.
+     *
+     * <p>Each order's reservation is recomputed rather than stored, so taking every one of
+     * them back can leave a remainder of a few units in the last place ({@code -1e-15}),
+     * which reads as "-0.00 reserved" on screen. Only the reservation is snapped, and only
+     * that close to zero: it is a promise rather than money, so neither the balance nor
+     * any account identity is touched.
+     */
+    private static double settled(double reserved) {
+        return Math.abs(reserved) < RESERVATION_CRUMB ? 0.0 : reserved;
     }
 
     // --- shares ---

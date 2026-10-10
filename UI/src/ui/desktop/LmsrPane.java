@@ -181,7 +181,7 @@ class LmsrPane extends HBox {
          */
         private void buy() {
             app.perform(() -> {
-                long shares = Shell.readPositiveLong(quantity.getText(), "shares");
+                long shares = Shell.readLong(quantity.getText(), "shares");
                 PurchaseResult result = app.engine().participate(eventId, optionIndex, shares);
                 return String.format("Bought %s of %s for %s (commission %s).",
                         Widgets.shares(result.sharesBought()), result.optionName(),

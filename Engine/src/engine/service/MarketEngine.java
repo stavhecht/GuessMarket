@@ -1,5 +1,6 @@
 package engine.service;
 
+import engine.dto.CancelResult;
 import engine.dto.EventStatusView;
 import engine.dto.EventView;
 import engine.dto.FillView;
@@ -19,7 +20,9 @@ import engine.exception.InvalidAmountException;
 import engine.exception.InvalidEventException;
 import engine.exception.InvalidFileException;
 import engine.exception.InvalidOptionException;
+import engine.exception.InvalidOrderException;
 import engine.exception.InvalidShareAmountException;
+import engine.exception.InvalidUserException;
 import engine.exception.NoFileLoadedException;
 import engine.exception.NoUserSelectedException;
 import engine.exception.NotMarketMakerException;
@@ -156,6 +159,9 @@ public class MarketEngine implements Market {
         String eventDescription = normalise(description);
         Option[] options = validateDefinition(eventName, eventDescription, commissionPercent,
                 commissionMethod, optionNames);
+        // Finite first: NaN fails every comparison, and an infinite b would ask for an
+        // infinite subsidy, which is refused below but with a sentence about money.
+        requireEvent(Double.isFinite(b), "b must be a number.");
         requireEvent(b > 0, "b must be greater than 0, got " + b + ".");
 
         TradingMethod.Lmsr settings = new TradingMethod.Lmsr(b);
@@ -501,9 +507,11 @@ public class MarketEngine implements Market {
     /**
      * Opens the market with nothing in it, for a host whose events arrive over time rather
      * than from one file: the server's market exists from the moment it starts, before
-     * anyone has uploaded anything, and every command that asks for "a file" is asking
-     * for a market to act in, which this is. Users then come from {@link #registerUser}
-     * and events from {@link #addEventsFromFile} and the two {@code create} methods.
+     * anyone has uploaded anything, and the desktop app's from the moment its window opens,
+     * before anyone has chosen a file. Every command that asks for "a file" is asking for a
+     * market to act in, which this is. Users then come from {@link #registerUser} and
+     * events from {@link #addEventsFromFile} and the two {@code create} methods; a file
+     * loaded afterwards replaces the lot, as it replaces any market.
      */
     public void openEmptyMarket() {
         fileLoaded = true;
@@ -534,18 +542,23 @@ public class MarketEngine implements Market {
      * leaves nothing, or if someone already has it in any letter case, the loader's own
      * rule for a file's users.
      *
-     * @param initialCash what they start with; the server's policy, not the engine's
+     * <p>Also how the desktop app fills a market it opened without a file: there it is the
+     * admin who names the user and their starting cash, so both are checked here rather than
+     * trusted to whoever is calling.
+     *
+     * @param initialCash what they start with; the caller's policy, not the engine's
      * @return the new account
+     * @throws InvalidUserException                    if the name is blank or the cash negative
      * @throws engine.exception.DuplicateUserException if the name is taken
      */
     public UserView registerUser(String name, int initialCash) {
         requireFileLoaded();
         String userName = normalise(name);
         if (userName.isEmpty()) {
-            throw new InvalidEventException("A user needs a name.");
+            throw new InvalidUserException("A user needs a name.");
         }
         if (initialCash < 0) {
-            throw new InvalidEventException("A user cannot start with negative cash.");
+            throw new InvalidUserException("A user cannot start with negative cash, got " + initialCash + ".");
         }
         User user = new User(userName, initialCash, List.of());
         eventManager.addUser(user);
@@ -617,6 +630,12 @@ public class MarketEngine implements Market {
         }
         if (amount <= 0) {
             throw new InvalidAmountException("The amount to load must be greater than 0.");
+        }
+        // A finite amount can still carry the balance past the largest double, and a balance
+        // of Infinity is no balance at all: it cannot be spent from, compared or even written
+        // out to a client.
+        if (!Double.isFinite(user.getBalance() + amount)) {
+            throw new InvalidAmountException("That amount is too large for an account to hold.");
         }
         user.deposit(amount);
         return buildUserView(user);
@@ -754,6 +773,67 @@ public class MarketEngine implements Market {
                 order.getFilled(),
                 order.getRemaining(),
                 fills);
+    }
+
+    /**
+     * Withdraws the selected user's most recent order still waiting in an event's book.
+     *
+     * <p>"Most recent" is by the order log's sequence, among the orders still resting: one
+     * that has filled completely is history and cannot be taken back, and one that has filled
+     * in part is cancelled for what is left of it only. Whatever the order had set aside
+     * comes back: the cash and commission behind the rest of a buy, the shares behind the
+     * rest of a sell. Nothing else moves, so the balances and the event account are exactly
+     * what they were and only the free part of the owner's money or shares grows.
+     *
+     * @throws EventClosedException  if the event has settled, which already released every order
+     * @throws InvalidOrderException if the user has nothing waiting in this book
+     */
+    @Override
+    public CancelResult cancelLastOrder(int eventId) {
+        requireFileLoaded();
+        return cancelLastOrderAs(requireSelectedUser(), eventId);
+    }
+
+    /** {@link #cancelLastOrder} as a named user, for a server acting on a client's behalf. */
+    public CancelResult cancelLastOrder(String userName, int eventId) {
+        requireFileLoaded();
+        return cancelLastOrderAs(eventManager.getUser(userName), eventId);
+    }
+
+    private CancelResult cancelLastOrderAs(User owner, int eventId) {
+        Event event = eventManager.getEvent(eventId);
+        requireOrderBookMarket(event);
+        if (!event.isActive()) {
+            throw new EventClosedException("Event " + eventId
+                    + " is already closed; every order in it was released when it settled.");
+        }
+
+        OrderBook book = event.getOrderBook();
+        Order last = null;
+        for (Order order : book.restingOrders()) {
+            if (order.getUserName().equals(owner.getName())
+                    && (last == null || order.getSequence() > last.getSequence())) {
+                last = order;
+            }
+        }
+        if (last == null) {
+            throw new InvalidOrderException(owner.getName() + " has no order waiting in event "
+                    + eventId + " to cancel.");
+        }
+
+        // --- commit ---
+        double cashReleased = 0.0;
+        if (last.getSide() == OrderSide.BUY) {
+            cashReleased = OrderExecutor.reservationFor(event, last);
+            owner.release(cashReleased);
+        } else {
+            owner.unlockShares(eventId, last.getOptionIndex(), last.getRemaining());
+        }
+        book.remove(last);
+
+        return new CancelResult(eventId, last.getSequence(), last.getSide().name(),
+                event.getOption(last.getOptionIndex()).getName(), last.getPrice(),
+                last.getRemaining(), cashReleased);
     }
 
     /**

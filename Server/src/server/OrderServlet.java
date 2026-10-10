@@ -17,8 +17,10 @@ public class OrderServlet extends ApiServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         write(req, resp, (engine, user) -> {
             OrderRequest order = body(req, OrderRequest.class);
-            OrderSide side = EventsServlet.named(OrderSide.class, order.side(), "side");
-            return engine.placeOrder(user, order.eventId(), order.optionIndex(), side, order.price(), order.quantity());
+            OrderSide side = named(OrderSide.class, order.side(), "side");
+            return engine.placeOrder(user, required(order.eventId(), "eventId"),
+                    required(order.optionIndex(), "optionIndex"), side,
+                    required(order.price(), "price"), required(order.quantity(), "quantity"));
         });
     }
 }

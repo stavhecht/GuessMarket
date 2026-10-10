@@ -16,7 +16,7 @@ public class FundsServlet extends ApiServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         write(req, resp, (engine, user) -> {
             LoadFundsRequest load = body(req, LoadFundsRequest.class);
-            return engine.loadFunds(user, load.amount());
+            return engine.loadFunds(user, required(load.amount(), "amount"));
         });
     }
 }

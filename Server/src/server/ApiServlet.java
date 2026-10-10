@@ -2,6 +2,7 @@ package server;
 
 import api.ErrorBody;
 import api.Json;
+import com.google.gson.JsonParseException;
 import engine.exception.EngineException;
 import engine.exception.EventClosedException;
 import engine.exception.EventNotFoundException;
@@ -15,6 +16,7 @@ import jakarta.servlet.http.HttpSession;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.concurrent.locks.Lock;
 
 /**
@@ -105,14 +107,53 @@ abstract class ApiServlet extends HttpServlet {
         return HttpServletResponse.SC_BAD_REQUEST;
     }
 
-    /** The request body as one of the {@code api} records. Event names may be non-ASCII. */
+    /**
+     * The request body as one of the {@code api} records. Event names may be non-ASCII.
+     *
+     * <p>Nothing here assumes the body came from {@code RemoteMarket}: anything can post to
+     * these paths. A body that is not JSON, or whose fields are the wrong type for the record
+     * (a word where a number goes, a fraction where a whole number goes), is the caller's
+     * mistake and reads as 400, not as Gson's stack trace under a 500.
+     */
     protected static <T> T body(HttpServletRequest req, Class<T> type) throws IOException {
         req.setCharacterEncoding(StandardCharsets.UTF_8.name());
-        T parsed = Json.GSON.fromJson(req.getReader(), type);
+        T parsed;
+        try {
+            parsed = Json.GSON.fromJson(req.getReader(), type);
+        } catch (JsonParseException e) {
+            throw new IllegalArgumentException("The request body is not the JSON this endpoint expects.");
+        }
         if (parsed == null) {
             throw new IllegalArgumentException("The request has no body.");
         }
         return parsed;
+    }
+
+    /**
+     * One field of a request body, refused if the body left it out.
+     *
+     * <p>This is the server's half of the validation, and the only half the engine cannot do
+     * for it: whether a value was sent at all. The engine judges every value it is handed
+     * (the range of a price, whether an option exists, who may close an event), but a field
+     * that is missing has to be stopped before it is handed anything, since there is no
+     * honest number to hand it.
+     */
+    protected static <T> T required(T value, String field) {
+        if (value == null) {
+            throw new IllegalArgumentException("The request is missing '" + field + "'.");
+        }
+        return value;
+    }
+
+    /** An enum by its name, with the caller's mistake read as 400 rather than a stack trace. */
+    protected static <E extends Enum<E>> E named(Class<E> type, String name, String field) {
+        required(name, field);
+        try {
+            return Enum.valueOf(type, name);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("'" + name + "' is not a valid '" + field + "'; expected one of "
+                    + Arrays.toString(type.getEnumConstants()) + ".");
+        }
     }
 
     /**

@@ -19,8 +19,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The observable mirror the screens follow: a property per option price, per event account
- * and per user balance, re-read from the engine on every {@link Shell#refresh()}.
+ * The observable mirror the screens follow: a property per option price, per event account,
+ * and per user balance and available cash, re-read from the engine on every
+ * {@link Shell#refresh()}.
  *
  * <p>The engine is plain Java and says nothing when it changes: it is asked, never
  * subscribed to. This class is the adapter that gives the UI something to
@@ -86,6 +87,9 @@ public class LiveMarket {
 
     private final Map<String, DoubleProperty> balances = new LinkedHashMap<>();
 
+    /** The part of each balance not promised to a waiting buy order. */
+    private final Map<String, DoubleProperty> available = new LinkedHashMap<>();
+
     /** Every balance this user has held since the window opened, oldest first. */
     private final Map<String, List<BalancePoint>> balanceHistory = new LinkedHashMap<>();
 
@@ -125,6 +129,14 @@ public class LiveMarket {
     /** What {@code userName} holds in cash now. */
     DoubleProperty balance(String userName) {
         return balances.computeIfAbsent(userName, name -> new SimpleDoubleProperty());
+    }
+
+    /**
+     * What {@code userName} can still spend: the balance less what their waiting buy orders
+     * have set aside. This is the figure every purchase and order is checked against.
+     */
+    DoubleProperty available(String userName) {
+        return available.computeIfAbsent(userName, name -> new SimpleDoubleProperty());
     }
 
     /**
@@ -196,6 +208,7 @@ public class LiveMarket {
                 history.add(new BalancePoint(user.balance(), Instant.now()));
             }
             held.set(user.balance());
+            available(user.name()).set(user.availableCash());
         }
     }
 
@@ -220,6 +233,7 @@ public class LiveMarket {
         accounts.clear();
         commissions.clear();
         balances.clear();
+        available.clear();
         balanceHistory.clear();
     }
 }

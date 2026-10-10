@@ -65,8 +65,10 @@ public class ClientApp extends Shell {
     @Override
     protected void wireFileBar() {
         loadFile.setText("Upload file");
+        // Not padded: the upload is a round trip to the server, which takes the time it takes,
+        // so the bar waits on that rather than on a ramp of its own.
         loadFile.setOnAction(action -> chooseFile("Upload events file", "XML files", "*.xml", false)
-                .ifPresent(file -> runWithProgress("Uploading", file, () -> {
+                .ifPresent(file -> runWithProgress("Uploading", file, false, () -> {
                     List<EventView> made = market().uploadEventsFile(file);
                     return "Uploaded " + made.size() + (made.size() == 1 ? " event" : " events")
                             + " from " + file.getName() + "; you are their market maker.";

@@ -324,10 +324,12 @@ public abstract class Shell extends Application implements Host {
     /**
      * How long the bar takes to cross the strip when the work itself takes no time at all.
      *
-     * <p>Reading one of these files is over in a few milliseconds, which on screen is a
-     * flicker and nothing else, so the two ramps below are stretched over this instead.
+     * <p>Reading one of these files locally is over in a few milliseconds, which on screen
+     * is a flicker and nothing else, so the two ramps below are stretched over this instead.
      * Work that really does take longer is not padded past its own time: the bar simply
      * rests at {@link #HANDOVER} while the engine works, and finishes when it is done.
+     * Work that is slow by nature (an upload, waiting on a server) is not padded at all:
+     * see the {@code padded} flag of {@link #runWithProgress}.
      */
     private static final long RAMP_MILLIS = 1600;
 
@@ -344,10 +346,16 @@ public abstract class Shell extends Application implements Host {
      * outside it: the task is the only thing that knows how far along it is, and binding
      * is what keeps the FX thread out of the worker's way.
      *
-     * @param verb what the strip says while it runs ("Reading", "Uploading")
-     * @param work the engine call, returning the sentence to report when it succeeds
+     * @param verb   what the strip says while it runs ("Reading", "Uploading")
+     * @param padded whether to stretch the bar over {@link #RAMP_MILLIS}. True for work done
+     *               in this process, which would otherwise be a flicker. False for work that
+     *               takes its own time somewhere else, such as an upload the server reads:
+     *               there the wait is real, so nothing is added to it, and since nobody here
+     *               knows how far along the server is, the bar is indeterminate until the
+     *               answer arrives rather than pretending to a fraction
+     * @param work   the engine call, returning the sentence to report when it succeeds
      */
-    protected void runWithProgress(String verb, File file, Callable<String> work) {
+    protected void runWithProgress(String verb, File file, boolean padded, Callable<String> work) {
         // Read here rather than in the task: the switch is a control, and a control is the
         // FX thread's. A load already under way keeps the ramp it started with.
         boolean ramp = animations.isSelected();
@@ -355,6 +363,12 @@ public abstract class Shell extends Application implements Host {
         Task<String> load = new Task<>() {
             @Override
             protected String call() throws Exception {
+                if (!padded) {
+                    updateProgress(ProgressBar.INDETERMINATE_PROGRESS, 1);
+                    String done = work.call();
+                    updateProgress(1, 1);
+                    return done;
+                }
                 updateProgress(0, 1);
                 creep(0, HANDOVER, Math.round(RAMP_MILLIS * HANDOVER));
                 String done = work.call();
@@ -410,10 +424,14 @@ public abstract class Shell extends Application implements Host {
         worker.start();
     }
 
-    /** A task's progress as the design writes it. Before it starts, that is 0 and not −100. */
+    /**
+     * A task's progress as the design writes it. A negative progress is a task that has not
+     * started or cannot say how far along it is, and a percentage of it would be a lie, so
+     * it reads as nothing rather than as 0% or −100%.
+     */
     private static String asPercent(Number progress) {
-        double fraction = progress == null ? 0 : progress.doubleValue();
-        return Math.round(Math.max(0, fraction) * 100) + "%";
+        double fraction = progress == null ? -1 : progress.doubleValue();
+        return fraction < 0 ? "" : Math.round(fraction * 100) + "%";
     }
 
     private void showLoading(boolean busy) {
@@ -514,6 +532,16 @@ public abstract class Shell extends Application implements Host {
         EventDialogs.loadFunds(this);
     }
 
+    /**
+     * Nothing by default: opening an account is up to the market, and only the admin app's
+     * engine takes one from a form, so {@code DesktopApp} overrides this. A client never
+     * reaches it, since its Users tab has no list panel to carry the button.
+     */
+    @Override
+    public void addUser() {
+        report("Accounts in this market are opened by logging in.", true);
+    }
+
     /** A sum as the screens write it, for a subclass's own label in the bar. */
     protected static String money(double amount) {
         return Widgets.money(amount);
@@ -573,47 +601,39 @@ public abstract class Shell extends Application implements Host {
 
     // --- reading what was typed ---
 
-    /**
-     * Turns a typed figure into a number, the way {@link ui.console.InputReader} does for the
-     * console: the message says what was expected, and the caller's {@link #perform} shows it.
+    /*
+     * These turn text into a number and do nothing else. Whether the number is acceptable
+     * (a positive share count, a price inside the book's range, a commission under the
+     * ceiling) is the engine's to say, and it says it whichever window or client is asking:
+     * a figure checked here as well would be a second rule that could drift from the first,
+     * and the client's copy of it would protect a server that cannot assume the client ran it.
      */
-    static long readPositiveLong(String text, String what) {
+
+    /** A typed whole number of {@code what}; the message says what was expected, and {@link #perform} shows it. */
+    static long readLong(String text, String what) {
         try {
-            long value = Long.parseLong(text.trim().replace(",", ""));
-            if (value <= 0) {
-                throw new IllegalArgumentException("The number of " + what + " must be greater than 0.");
-            }
-            return value;
+            return Long.parseLong(text.trim().replace(",", ""));
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("'" + text.trim() + "' is not a whole number of " + what + ".");
         }
     }
 
-    /**
-     * A whole number with a floor rather than a strictly positive one: a commission of 0 and
-     * an order book opened with no initial investment are both legal, so
-     * {@link #readPositiveLong} would refuse figures the engine accepts.
-     */
-    static int readWholeNumber(String text, String what, int least) {
+    /** The same, for the figures the engine takes as an {@code int}. */
+    static int readInt(String text, String what) {
         try {
-            int value = Integer.parseInt(text.trim().replace(",", ""));
-            if (value < least) {
-                throw new IllegalArgumentException(
-                        "The " + what + " cannot be less than " + least + ".");
-            }
-            return value;
+            return Integer.parseInt(text.trim().replace(",", ""));
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("'" + text.trim() + "' is not a whole " + what + ".");
         }
     }
 
-    static double readPositiveDouble(String text, String what) {
+    /**
+     * A typed figure that may have a fraction. Commas are not stripped here as they are for a
+     * whole number, since {@code 0,5} is somebody's half and must not become 5.
+     */
+    static double readDouble(String text, String what) {
         try {
-            double value = Double.parseDouble(text.trim());
-            if (value <= 0) {
-                throw new IllegalArgumentException("The " + what + " must be greater than 0.");
-            }
-            return value;
+            return Double.parseDouble(text.trim());
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("'" + text.trim() + "' is not a " + what + ".");
         }
