@@ -16,6 +16,14 @@ import java.io.Serializable;
 public sealed interface TradingMethod extends Serializable {
 
     /**
+     * What opening a market with these settings costs its Market Maker: the money that
+     * leaves their balance for the event's account the moment the event exists, whichever
+     * method it trades by. The loader sums this per maker to refuse a file they cannot
+     * afford, and an uploaded file is checked the same way.
+     */
+    double openingCost();
+
+    /**
      * Hanson's LMSR, priced by {@code engine.service.LmsrCalculator}.
      *
      * @param b the liquidity parameter: the larger it is, the less a purchase moves the price
@@ -35,6 +43,11 @@ public sealed interface TradingMethod extends Serializable {
          */
         public double subsidy() {
             return b * Math.log(2);
+        }
+
+        @Override
+        public double openingCost() {
+            return subsidy();
         }
     }
 
@@ -61,6 +74,12 @@ public sealed interface TradingMethod extends Serializable {
          */
         public double openingPrice() {
             return d / 2.0;
+        }
+
+        /** The initial investment: what the maker pays for their {@code initialInvestment / d} pairs. */
+        @Override
+        public double openingCost() {
+            return initialInvestment;
         }
     }
 }

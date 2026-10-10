@@ -22,6 +22,7 @@ import jakarta.xml.bind.Unmarshaller;
 import jakarta.xml.bind.ValidationEvent;
 
 import java.io.File;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -54,6 +55,9 @@ import java.util.stream.Collectors;
  *
  * <p>Nothing in this class touches engine state. A rejected file throws before a single
  * object reaches {@link engine.service.EventManager}, so the previously loaded file survives intact.
+ *
+ * <p>{@link #loadDefinitions} is the second way in, for an exercise-3 file: events only,
+ * read from a stream, with the id and user rules left out because such a file has neither.
  */
 public class XmlEventLoader {
 
@@ -86,6 +90,36 @@ public class XmlEventLoader {
         return new LoadedMarket(events, toUsers(document.getUsers(), events));
     }
 
+    /**
+     * Reads an exercise-3 events file, which carries events only: no users, and no ids.
+     *
+     * <p>The stream rather than a path, because such a file is uploaded to a server and
+     * never touches its disk. The same schema classes read it: JAXB does not enforce
+     * {@code required}, so an absent {@code <id>} arrives as 0 and an absent
+     * {@code <GM-users>} as an empty list, and this path simply does not ask about
+     * either. Everything else the rules say about an event is asked, plus one thing
+     * {@link #load} does not need: names unique within the file, since with no ids a
+     * name is all that tells two events apart. Whether a name is free in the market it is
+     * about to join is the engine's question, since only it can see that market.
+     *
+     * @return the file's events in file order, checked but not yet built
+     * @throws InvalidFileException if the stream is not the expected XML or breaks a rule
+     */
+    public List<EventDefinition> loadDefinitions(InputStream xml) {
+        List<XmlEvent> xmlEvents = parse(xml).getEvents();
+        require(!xmlEvents.isEmpty(), "The file contains no events.");
+
+        List<EventDefinition> definitions = new ArrayList<>(xmlEvents.size());
+        Set<String> namesSeen = new HashSet<>();
+        for (XmlEvent xmlEvent : xmlEvents) {
+            EventDefinition definition = toDefinition(xmlEvent);
+            require(namesSeen.add(definition.name().toLowerCase(Locale.ROOT)),
+                    "Duplicate event name in the file: '%s'.", definition.name());
+            definitions.add(definition);
+        }
+        return definitions;
+    }
+
     // --- step 1: the file ---
 
     private File openXmlFile(String rawPath) {
@@ -107,10 +141,23 @@ public class XmlEventLoader {
     // --- step 2: XML to the annotated classes ---
 
     private XmlGuessMarket parse(File file) {
+        return parse(unmarshaller -> unmarshaller.unmarshal(file));
+    }
+
+    private XmlGuessMarket parse(InputStream xml) {
+        return parse(unmarshaller -> unmarshaller.unmarshal(xml));
+    }
+
+    /** What JAXB is asked to read: the one line that differs between a file and a stream. */
+    private interface Source {
+        Object unmarshal(Unmarshaller unmarshaller) throws JAXBException;
+    }
+
+    private XmlGuessMarket parse(Source source) {
         try {
             Unmarshaller unmarshaller = context.createUnmarshaller();
             unmarshaller.setEventHandler(XmlEventLoader::isRecoverable);
-            Object parsed = unmarshaller.unmarshal(file);
+            Object parsed = source.unmarshal(unmarshaller);
             require(parsed instanceof XmlGuessMarket, "The file is not a Guess-Market events file.");
             return (XmlGuessMarket) parsed;
         } catch (JAXBException e) {
@@ -156,27 +203,45 @@ public class XmlEventLoader {
         return events;
     }
 
+    /** An exercise-2 event: everything a definition has, plus the id the file gives it. */
     private Event toEvent(XmlEvent xmlEvent) {
-        String name = xmlEvent.getName();
-        require(name != null && !name.isEmpty(), "An event is missing its 'name' attribute.");
+        EventDefinition definition = toDefinition(xmlEvent);
 
         int id = xmlEvent.getId();
-        require(id > 0, "Event '%s' has a missing or non-positive id: %d.", name, id);
+        require(id > 0, "Event '%s' has a missing or non-positive id: %d.", definition.name(), id);
+
+        return new Event(
+                id,
+                definition.name(),
+                definition.description(),
+                definition.commissionPercent() / PERCENT,
+                definition.commissionMethod(),
+                definition.tradingMethod(),
+                options(definition.optionNames(), definition.name()));
+    }
+
+    /** Every rule about one event except its id, which an exercise-3 file does not carry. */
+    private EventDefinition toDefinition(XmlEvent xmlEvent) {
+        String name = xmlEvent.getName();
+        require(name != null && !name.isEmpty(), "An event is missing its 'name' attribute.");
 
         String description = xmlEvent.getDescription();
         require(description != null && !description.isEmpty(), "Event '%s' has no description.", name);
 
         XmlCommission commission = xmlEvent.getCommission();
         require(commission != null, "Event '%s' has no commission.", name);
+        commissionRate(commission.getPercent(), name);   // the range rule; the rate itself is derived later
 
-        return new Event(
-                id,
+        TradingMethod method = tradingMethod(xmlEvent.getMethod(), name);
+        Option[] options = options(xmlEvent.getOptionNames(), name);   // the option rules
+
+        return new EventDefinition(
                 name,
                 description,
-                commissionRate(commission.getPercent(), name),
+                commission.getPercent(),
                 commissionMethod(commission.getType(), name),
-                tradingMethod(xmlEvent.getMethod(), name),
-                options(xmlEvent.getOptionNames(), name));
+                method,
+                List.of(options[0].getName(), options[1].getName()));
     }
 
     /**
@@ -251,10 +316,7 @@ public class XmlEventLoader {
                             + "'GM-mareket-maker'.",
                     event.getId(), event.getName());
 
-            double cost = event.getTradingMethod() instanceof TradingMethod.OrderBook orderBook
-                    ? orderBook.initialInvestment()
-                    : ((TradingMethod.Lmsr) event.getTradingMethod()).subsidy();
-            owed.merge(makerName, cost, Double::sum);
+            owed.merge(makerName, event.getTradingMethod().openingCost(), Double::sum);
         }
 
         for (Map.Entry<String, Double> entry : owed.entrySet()) {

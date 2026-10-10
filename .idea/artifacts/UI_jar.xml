@@ -3,10 +3,16 @@
     <output-path>$PROJECT_DIR$/out/artifacts/UI_jar</output-path>
     <root id="root">
       <element id="archive" name="UI.jar">
+        <element id="directory" name="META-INF">
+          <element id="file-copy" path="$PROJECT_DIR$/UI/META-INF/MANIFEST.MF" />
+        </element>
         <element id="module-output" name="Engine" />
         <element id="module-output" name="UI" />
       </element>
       <element id="library" level="module" name="jaxb" module-name="Engine" />
+      <element id="library" level="project" name="lib" />
+      <element id="file-copy" path="$PROJECT_DIR$/run.sh" />
+      <element id="file-copy" path="$PROJECT_DIR$/run.bat" />
     </root>
   </artifact>
 </component>

@@ -1,5 +1,7 @@
 package engine.service;
 
+import engine.dto.CancelResult;
+import engine.dto.ChatMessage;
 import engine.dto.EventStatusView;
 import engine.dto.EventView;
 import engine.dto.FillView;
@@ -15,14 +17,20 @@ import engine.dto.SettlementResult;
 import engine.dto.UserView;
 import engine.exception.EventClosedException;
 import engine.exception.InsufficientFundsException;
+import engine.exception.InvalidAmountException;
 import engine.exception.InvalidEventException;
+import engine.exception.InvalidFileException;
+import engine.exception.InvalidMessageException;
 import engine.exception.InvalidOptionException;
+import engine.exception.InvalidOrderException;
 import engine.exception.InvalidShareAmountException;
+import engine.exception.InvalidUserException;
 import engine.exception.NoFileLoadedException;
 import engine.exception.NoUserSelectedException;
 import engine.exception.NotMarketMakerException;
 import engine.exception.StateFileException;
 import engine.exception.UnsupportedMethodException;
+import engine.loader.EventDefinition;
 import engine.loader.LoadedMarket;
 import engine.loader.UserPath;
 import engine.loader.XmlEventLoader;
@@ -44,11 +52,13 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * The front: the only engine class the UI imports.
@@ -56,8 +66,15 @@ import java.util.List;
  * <p>Two rules hold throughout: every DTO is built here (the UI never constructs one),
  * and no value is ever rounded (formatting is the UI's job, so the account identity
  * {@code balance == subsidy + Σ costs − payouts} stays exact).
+ *
+ * <p>Every command that acts as somebody comes in two forms. The {@link Market} form takes
+ * no user and acts as whoever {@link #selectUser} chose, which is the single-process app
+ * where one person sits at the console. The other form names the user first and is for a
+ * server, where one engine is shared by many clients and a single "current user" field
+ * would be a race between them: the server never calls {@code selectUser}, and reads the
+ * name off the client's session instead.
  */
-public class MarketEngine {
+public class MarketEngine implements Market {
 
     /** Appended to the path the user gives, so they never have to type an extension. */
     public static final String STATE_EXTENSION = ".gm";
@@ -73,6 +90,9 @@ public class MarketEngine {
     private final LmsrCalculator lmsr = new LmsrCalculator();
     private final XmlEventLoader loader = new XmlEventLoader();
     private final OrderExecutor executor = new OrderExecutor();
+
+    /** What people have said about each event; talk about the market, not state of it. */
+    private final ChatLog chat = new ChatLog();
     private boolean fileLoaded =  false;
 
     /**
@@ -100,6 +120,7 @@ public class MarketEngine {
         // refused a file where one of them could not afford what they run.
         eventManager.applyInitialSubsidies();
         eventManager.applyInitialAllocations();
+        chat.clear();             // event ids are the file's, and mean other events now
         currentUserName = null;   // the new file has its own users
         fileLoaded = true;
     }
@@ -118,17 +139,35 @@ public class MarketEngine {
      *          the market requires one
      * @return the event as the UI sees it
      */
+    @Override
     public EventView createLmsrEvent(String name, String description, int commissionPercent,
                                      CommissionMethod commissionMethod, List<String> optionNames,
                                      double b) {
         requireFileLoaded();
-        User creator = requireSelectedUser();
+        return createLmsrEventAs(requireSelectedUser(), name, description, commissionPercent,
+                commissionMethod, optionNames, b);
+    }
 
+    /** {@link #createLmsrEvent} as a named user, for a server acting on a client's behalf. */
+    public EventView createLmsrEvent(String userName, String name, String description, int commissionPercent,
+                                     CommissionMethod commissionMethod, List<String> optionNames,
+                                     double b) {
+        requireFileLoaded();
+        return createLmsrEventAs(eventManager.getUser(userName), name, description, commissionPercent,
+                commissionMethod, optionNames, b);
+    }
+
+    private EventView createLmsrEventAs(User creator, String name, String description, int commissionPercent,
+                                        CommissionMethod commissionMethod, List<String> optionNames,
+                                        double b) {
         // --- validate; nothing has been touched yet ---
         String eventName = normalise(name);
         String eventDescription = normalise(description);
         Option[] options = validateDefinition(eventName, eventDescription, commissionPercent,
                 commissionMethod, optionNames);
+        // Finite first: NaN fails every comparison, and an infinite b would ask for an
+        // infinite subsidy, which is refused below but with a sentence about money.
+        requireEvent(Double.isFinite(b), "b must be a number.");
         requireEvent(b > 0, "b must be greater than 0, got " + b + ".");
 
         TradingMethod.Lmsr settings = new TradingMethod.Lmsr(b);
@@ -167,12 +206,27 @@ public class MarketEngine {
      *
      * @return the event as the UI sees it
      */
+    @Override
     public EventView createOrderBookEvent(String name, String description, int commissionPercent,
                                           CommissionMethod commissionMethod, List<String> optionNames,
                                           int initialInvestment, int d, boolean allowMint) {
         requireFileLoaded();
-        User creator = requireSelectedUser();
+        return createOrderBookEventAs(requireSelectedUser(), name, description, commissionPercent,
+                commissionMethod, optionNames, initialInvestment, d, allowMint);
+    }
 
+    /** {@link #createOrderBookEvent} as a named user, for a server acting on a client's behalf. */
+    public EventView createOrderBookEvent(String userName, String name, String description, int commissionPercent,
+                                          CommissionMethod commissionMethod, List<String> optionNames,
+                                          int initialInvestment, int d, boolean allowMint) {
+        requireFileLoaded();
+        return createOrderBookEventAs(eventManager.getUser(userName), name, description, commissionPercent,
+                commissionMethod, optionNames, initialInvestment, d, allowMint);
+    }
+
+    private EventView createOrderBookEventAs(User creator, String name, String description, int commissionPercent,
+                                             CommissionMethod commissionMethod, List<String> optionNames,
+                                             int initialInvestment, int d, boolean allowMint) {
         // --- validate; nothing has been touched yet ---
         String eventName = normalise(name);
         String eventDescription = normalise(description);
@@ -216,6 +270,9 @@ public class MarketEngine {
     private Option[] validateDefinition(String name, String description, int commissionPercent,
                                         CommissionMethod commissionMethod, List<String> optionNames) {
         requireEvent(!name.isEmpty(), "an event needs a name.");
+        // Events arrive from many sources (files uploaded by different users, and the form)
+        // and a name is how people tell them apart, so no two may share one.
+        requireEvent(!eventNameTaken(name), "there is already an event named '" + name + "'.");
         requireEvent(!description.isEmpty(), "event '" + name + "' needs a description.");
         requireEvent(commissionMethod != null, "event '" + name + "' needs a commission method.");
         requireEvent(commissionPercent >= 0 && commissionPercent <= Event.MAX_COMMISSION_PERCENT,
@@ -240,6 +297,82 @@ public class MarketEngine {
         if (!condition) {
             throw new InvalidEventException("Cannot create the event: " + problem);
         }
+    }
+
+    /** Case-insensitive, the way the loader compares user names: "Rain" and "rain" are one event. */
+    private boolean eventNameTaken(String name) {
+        return eventManager.getAllEvents().stream()
+                .anyMatch(event -> event.getName().equalsIgnoreCase(name));
+    }
+
+    /**
+     * Adds every event in an exercise-3 events file to the market, all of them run and
+     * funded by {@code makerName}.
+     *
+     * <p>Such a file names no users and gives its events no ids: users are whoever has
+     * logged in, and ids are handed out here. The uploader is the Market Maker of all of
+     * it, on the rule that creating a market is never free: each LMSR event's
+     * {@code b·ln2} and each order book's {@code inital} leave their balance, summed first
+     * and checked against what they hold now, because the sum is what a file costs and
+     * checking per event would let a file through that overdraws halfway.
+     *
+     * <p>Atomic: the file is parsed and every rule (the file's own, the names against the
+     * market, the maker's money) is checked before the first event exists, so a rejected
+     * file leaves the market exactly as it was. Unlike {@link #loadEventsFile} nothing is
+     * replaced: the file's events join the ones already here.
+     *
+     * @return the events created, in file order
+     * @throws InvalidFileException       for anything wrong with the file, a name already
+     *                                    in use included
+     * @throws InsufficientFundsException if the maker cannot put up what the file costs
+     */
+    public List<EventView> addEventsFromFile(InputStream xml, String makerName) {
+        requireFileLoaded();
+        User maker = eventManager.getUser(makerName);
+
+        // --- validate; nothing has been touched yet ---
+        List<EventDefinition> definitions = loader.loadDefinitions(xml);
+        List<Option[]> options = new ArrayList<>(definitions.size());
+        double cost = 0;
+        for (EventDefinition definition : definitions) {
+            if (eventNameTaken(definition.name())) {
+                throw new InvalidFileException("There is already an event named '"
+                        + definition.name() + "'; event names must be unique.");
+            }
+            // The loader has applied the file's rules already; this is the runtime path's
+            // restatement of them, so a file and a form cannot disagree about an event.
+            options.add(validateDefinition(definition.name(), definition.description(),
+                    definition.commissionPercent(), definition.commissionMethod(),
+                    definition.optionNames()));
+            cost += definition.tradingMethod().openingCost();
+        }
+        if (maker.getBalance() < cost) {
+            throw new InsufficientFundsException(String.format(
+                    "'%s' holds %.2f and cannot put up the %.2f the events in this file open with.",
+                    maker.getName(), maker.getBalance(), cost));
+        }
+
+        // --- commit ---
+        // Nothing below can fail: every rule has been checked, and the maker's money covers
+        // the sum, so each event is created the way createLmsrEvent / createOrderBookEvent
+        // create one, this event alone and never through applyInitial* (which would charge
+        // every other maker in the market a second time).
+        List<EventView> created = new ArrayList<>(definitions.size());
+        for (int i = 0; i < definitions.size(); i++) {
+            EventDefinition definition = definitions.get(i);
+            Event event = new Event(eventManager.nextEventId(), definition.name(),
+                    definition.description(), definition.commissionPercent() / PERCENT,
+                    definition.commissionMethod(), definition.tradingMethod(), options.get(i));
+            eventManager.addEvent(event);
+            maker.addMarketMakerEvent(event.getId());
+            if (event.isLmsr()) {
+                eventManager.subsidise(event, maker);
+            } else {
+                eventManager.allocateInitial(event, maker);
+            }
+            created.add(viewOf(event));
+        }
+        return created;
     }
 
     /**
@@ -317,6 +450,7 @@ public class MarketEngine {
             // maker must leave the current one untouched, like any other rejected file.
             restored.requireEveryEventHasAMarketMaker();
             eventManager = restored;
+            chat.clear();
             currentUserName = null;   // the restored session has its own users
             restoredUiState = readUiState(stream);
             fileLoaded = true;
@@ -372,14 +506,29 @@ public class MarketEngine {
      * collecting an event id and a share count only to fail on the engine call. The
      * commands below still check for themselves; they can't trust a caller to have asked.
      */
+    @Override
     public boolean isFileLoaded() {
         return fileLoaded;
+    }
+
+    /**
+     * Opens the market with nothing in it, for a host whose events arrive over time rather
+     * than from one file: the server's market exists from the moment it starts, before
+     * anyone has uploaded anything, and the desktop app's from the moment its window opens,
+     * before anyone has chosen a file. Every command that asks for "a file" is asking for a
+     * market to act in, which this is. Users then come from {@link #registerUser} and
+     * events from {@link #addEventsFromFile} and the two {@code create} methods; a file
+     * loaded afterwards replaces the lot, as it replaces any market.
+     */
+    public void openEmptyMarket() {
+        fileLoaded = true;
     }
 
     /**
      * Acts as {@code name} from here on. This is an admin console: anyone in the file may
      * be selected, and the only thing the choice restricts is who may close an event.
      */
+    @Override
     public UserView selectUser(String name) {
         requireFileLoaded();
         User user = eventManager.getUser(name);
@@ -388,11 +537,60 @@ public class MarketEngine {
     }
 
     /** The name being acted as, or {@code null} if none has been chosen yet. */
+    @Override
     public String getCurrentUserName() {
         return currentUserName;
     }
 
+    /**
+     * Adds a user who did not come from a file: a client logging in for the first time.
+     *
+     * <p>The name is trimmed and squeezed the way an event name is, and refused if that
+     * leaves nothing, or if someone already has it in any letter case, the loader's own
+     * rule for a file's users.
+     *
+     * <p>Also how the desktop app fills a market it opened without a file: there it is the
+     * admin who names the user and their starting cash, so both are checked here rather than
+     * trusted to whoever is calling.
+     *
+     * @param initialCash what they start with; the caller's policy, not the engine's
+     * @return the new account
+     * @throws InvalidUserException                    if the name is blank or the cash negative
+     * @throws engine.exception.DuplicateUserException if the name is taken
+     */
+    public UserView registerUser(String name, int initialCash) {
+        requireFileLoaded();
+        String userName = normalise(name);
+        if (userName.isEmpty()) {
+            throw new InvalidUserException("A user needs a name.");
+        }
+        if (initialCash < 0) {
+            throw new InvalidUserException("A user cannot start with negative cash, got " + initialCash + ".");
+        }
+        User user = new User(userName, initialCash, List.of());
+        eventManager.addUser(user);
+        return buildUserView(user);
+    }
+
+    /**
+     * The account of the user called {@code name} in any letter case, if there is one.
+     *
+     * <p>For a login: whether the name belongs to somebody who has been here before, in
+     * which case the account (money, holdings, events run) is theirs to pick up again.
+     * The name in the view is the one they registered under, which is the one every
+     * later command has to use, since {@link EventManager} keys users exactly.
+     */
+    public Optional<UserView> findUser(String name) {
+        requireFileLoaded();
+        String wanted = normalise(name);
+        return eventManager.getAllUsers().stream()
+                .filter(user -> user.getName().equalsIgnoreCase(wanted))
+                .findFirst()
+                .map(this::buildUserView);
+    }
+
     /** Every user in the file, for the UI to offer as a choice. */
+    @Override
     public List<UserView> getUsers() {
         requireFileLoaded();
         return eventManager.getAllUsers().stream().map(this::buildUserView).toList();
@@ -404,6 +602,53 @@ public class MarketEngine {
         return buildUserView(requireSelectedUser());
     }
 
+    /** A named user's account, for a server answering one client about themselves. */
+    public UserView getAccount(String userName) {
+        requireFileLoaded();
+        return buildUserView(eventManager.getUser(userName));
+    }
+
+    /**
+     * Adds {@code amount} to the selected user's balance.
+     *
+     * <p>This is the one deposit that no other account pays for. Everything else that moves
+     * money in the engine moves it between users and event accounts, so the market's total
+     * is otherwise constant; a load is money arriving from outside, which is what the
+     * exercise asks for and why it is a command of its own rather than a side effect of
+     * anything.
+     *
+     * @throws InvalidAmountException if the amount is not a positive, finite number
+     */
+    @Override
+    public UserView loadFunds(double amount) {
+        requireFileLoaded();
+        return loadFundsAs(requireSelectedUser(), amount);
+    }
+
+    /** {@link #loadFunds(double)} as a named user, for a server acting on a client's behalf. */
+    public UserView loadFunds(String userName, double amount) {
+        requireFileLoaded();
+        return loadFundsAs(eventManager.getUser(userName), amount);
+    }
+
+    private UserView loadFundsAs(User user, double amount) {
+        if (Double.isNaN(amount) || Double.isInfinite(amount)) {
+            throw new InvalidAmountException("The amount to load must be a number.");
+        }
+        if (amount <= 0) {
+            throw new InvalidAmountException("The amount to load must be greater than 0.");
+        }
+        // A finite amount can still carry the balance past the largest double, and a balance
+        // of Infinity is no balance at all: it cannot be spent from, compared or even written
+        // out to a client.
+        if (!Double.isFinite(user.getBalance() + amount)) {
+            throw new InvalidAmountException("That amount is too large for an account to hold.");
+        }
+        user.deposit(amount);
+        return buildUserView(user);
+    }
+
+    @Override
     public List<EventView> getEvents() {
         requireFileLoaded();
         return eventManager.getAllEvents().stream().map(this::viewOf).toList();
@@ -423,6 +668,7 @@ public class MarketEngine {
                 event.getStatus().name());
     }
 
+    @Override
     public EventStatusView getEventStatus(int eventId) {
         requireFileLoaded();
         Event event = eventManager.getEvent(eventId);
@@ -447,6 +693,7 @@ public class MarketEngine {
      * @return {@code {priceOfOption0, priceOfOption1}} at the open, then one pair per trade;
      *         never empty for an event that exists
      */
+    @Override
     public List<double[]> getPriceHistory(int eventId) {
         requireFileLoaded();
         Event event = eventManager.getEvent(eventId);
@@ -476,6 +723,7 @@ public class MarketEngine {
      * history. The LMSR counterpart is {@link #getEventStatus}; the UI picks by the
      * {@code tradingMethod} it read from {@link #getEvents()}.
      */
+    @Override
     public OrderBookStatusView getOrderBookStatus(int eventId) {
         requireFileLoaded();
         Event event = eventManager.getEvent(eventId);
@@ -490,9 +738,21 @@ public class MarketEngine {
      * seller, or minted with a buyer of the other option) and how much of the order is now
      * waiting for someone to take the other side.
      */
+    @Override
     public OrderResult placeOrder(int eventId, int optionIndex, OrderSide side, double price, long quantity) {
         requireFileLoaded();
-        User trader = requireSelectedUser();
+        return placeOrderAs(requireSelectedUser(), eventId, optionIndex, side, price, quantity);
+    }
+
+    /** {@link #placeOrder} as a named user, for a server acting on a client's behalf. */
+    public OrderResult placeOrder(String userName, int eventId, int optionIndex, OrderSide side,
+                                  double price, long quantity) {
+        requireFileLoaded();
+        return placeOrderAs(eventManager.getUser(userName), eventId, optionIndex, side, price, quantity);
+    }
+
+    private OrderResult placeOrderAs(User trader, int eventId, int optionIndex, OrderSide side,
+                                     double price, long quantity) {
         Event event = eventManager.getEvent(eventId);
         requireOrderBookMarket(event);
 
@@ -522,6 +782,128 @@ public class MarketEngine {
                 fills);
     }
 
+    // --- chat ---
+
+    /**
+     * Posts one line to an event's chat as the selected user, for everyone in the market to read.
+     *
+     * @see #postChatMessage(String, int, String)
+     */
+    @Override
+    public ChatMessage postChatMessage(int eventId, String text) {
+        requireFileLoaded();
+        return postChatMessageAs(requireSelectedUser(), eventId, text);
+    }
+
+    /**
+     * {@link #postChatMessage(int, String)} as a named user, for a server acting on a
+     * client's behalf. The author is the name the engine knows, not anything in the request,
+     * so nobody can post as somebody else.
+     *
+     * <p>A closed event can still be talked about: the chat is how people discuss the
+     * outcome, and nothing in it moves money.
+     *
+     * @throws engine.exception.EventNotFoundException if there is no such event
+     * @throws InvalidMessageException if the text is empty after trimming, longer than
+     *                                 {@link #CHAT_MAX_LENGTH}, or more than one line
+     */
+    public ChatMessage postChatMessage(String userName, int eventId, String text) {
+        requireFileLoaded();
+        return postChatMessageAs(eventManager.getUser(userName), eventId, text);
+    }
+
+    private ChatMessage postChatMessageAs(User author, int eventId, String text) {
+        eventManager.getEvent(eventId);     // throws for an event that does not exist
+        String line = text == null ? "" : text.strip();
+        if (line.isEmpty()) {
+            throw new InvalidMessageException("A message needs some text.");
+        }
+        if (line.length() > CHAT_MAX_LENGTH) {
+            throw new InvalidMessageException("A message can be at most " + CHAT_MAX_LENGTH
+                    + " characters, not " + line.length() + ".");
+        }
+        // One line of text: a line break or a control character would let one message pass
+        // itself off as several, or as somebody else's line beneath it.
+        if (line.chars().anyMatch(Character::isISOControl)) {
+            throw new InvalidMessageException("A message must be a single line of text.");
+        }
+        return chat.post(eventId, author.getName(), line);
+    }
+
+    /**
+     * An event's chat, oldest first: every message with an id above {@code afterId}, so 0 is
+     * the whole of what is kept and the last id seen is "only what is new".
+     *
+     * @throws engine.exception.EventNotFoundException if there is no such event
+     */
+    @Override
+    public List<ChatMessage> getChatMessages(int eventId, long afterId) {
+        requireFileLoaded();
+        eventManager.getEvent(eventId);
+        return chat.after(eventId, Math.max(0, afterId));
+    }
+
+    /**
+     * Withdraws the selected user's most recent order still waiting in an event's book.
+     *
+     * <p>"Most recent" is by the order log's sequence, among the orders still resting: one
+     * that has filled completely is history and cannot be taken back, and one that has filled
+     * in part is cancelled for what is left of it only. Whatever the order had set aside
+     * comes back: the cash and commission behind the rest of a buy, the shares behind the
+     * rest of a sell. Nothing else moves, so the balances and the event account are exactly
+     * what they were and only the free part of the owner's money or shares grows.
+     *
+     * @throws EventClosedException  if the event has settled, which already released every order
+     * @throws InvalidOrderException if the user has nothing waiting in this book
+     */
+    @Override
+    public CancelResult cancelLastOrder(int eventId) {
+        requireFileLoaded();
+        return cancelLastOrderAs(requireSelectedUser(), eventId);
+    }
+
+    /** {@link #cancelLastOrder} as a named user, for a server acting on a client's behalf. */
+    public CancelResult cancelLastOrder(String userName, int eventId) {
+        requireFileLoaded();
+        return cancelLastOrderAs(eventManager.getUser(userName), eventId);
+    }
+
+    private CancelResult cancelLastOrderAs(User owner, int eventId) {
+        Event event = eventManager.getEvent(eventId);
+        requireOrderBookMarket(event);
+        if (!event.isActive()) {
+            throw new EventClosedException("Event " + eventId
+                    + " is already closed; every order in it was released when it settled.");
+        }
+
+        OrderBook book = event.getOrderBook();
+        Order last = null;
+        for (Order order : book.restingOrders()) {
+            if (order.getUserName().equals(owner.getName())
+                    && (last == null || order.getSequence() > last.getSequence())) {
+                last = order;
+            }
+        }
+        if (last == null) {
+            throw new InvalidOrderException(owner.getName() + " has no order waiting in event "
+                    + eventId + " to cancel.");
+        }
+
+        // --- commit ---
+        double cashReleased = 0.0;
+        if (last.getSide() == OrderSide.BUY) {
+            cashReleased = OrderExecutor.reservationFor(event, last);
+            owner.release(cashReleased);
+        } else {
+            owner.unlockShares(eventId, last.getOptionIndex(), last.getRemaining());
+        }
+        book.remove(last);
+
+        return new CancelResult(eventId, last.getSequence(), last.getSide().name(),
+                event.getOption(last.getOptionIndex()).getName(), last.getPrice(),
+                last.getRemaining(), cashReleased);
+    }
+
     /**
      * What buying {@code shares} of one outcome would cost, without buying anything.
      *
@@ -532,6 +914,7 @@ public class MarketEngine {
      *
      * @throws InvalidShareAmountException if {@code shares} is not a positive whole number
      */
+    @Override
     public PurchaseQuote quoteParticipation(int eventId, int optionIndex, long shares) {
         requireFileLoaded();
         Event event = eventManager.getEvent(eventId);
@@ -571,9 +954,19 @@ public class MarketEngine {
      * <p>Everything is validated and every figure computed before the first mutation,
      * so a rejected purchase can't leave shares issued against an untouched account.
      */
+    @Override
     public PurchaseResult participate(int eventId, int optionIndex, long shares) {
         requireFileLoaded();
-        User buyer = requireSelectedUser();
+        return participateAs(requireSelectedUser(), eventId, optionIndex, shares);
+    }
+
+    /** {@link #participate} as a named user, for a server acting on a client's behalf. */
+    public PurchaseResult participate(String userName, int eventId, int optionIndex, long shares) {
+        requireFileLoaded();
+        return participateAs(eventManager.getUser(userName), eventId, optionIndex, shares);
+    }
+
+    private PurchaseResult participateAs(User buyer, int eventId, int optionIndex, long shares) {
         Event event = eventManager.getEvent(eventId);
         requireLmsrMarket(event);
 
@@ -635,10 +1028,21 @@ public class MarketEngine {
      * obligation it was subsidised for, so the b·ln2 solvency guarantee is untouched no
      * matter how one-sided the market got.
      */
+    @Override
     public SettlementResult closeEvent(int eventId, int winningOptionIndex) {
         requireFileLoaded();
+        return closeEventAs(requireSelectedUser(), eventId, winningOptionIndex);
+    }
+
+    /** {@link #closeEvent} as a named user, for a server acting on a client's behalf. */
+    public SettlementResult closeEvent(String userName, int eventId, int winningOptionIndex) {
+        requireFileLoaded();
+        return closeEventAs(eventManager.getUser(userName), eventId, winningOptionIndex);
+    }
+
+    private SettlementResult closeEventAs(User user, int eventId, int winningOptionIndex) {
         Event event = eventManager.getEvent(eventId);
-        requireMarketMaker(event);
+        requireMarketMaker(event, user);
 
         if (!event.isActive()) {
             throw new EventClosedException("Event " + eventId + " has already been closed.");
@@ -916,9 +1320,8 @@ public class MarketEngine {
      * <p>This applies to every event and both trading methods, because every event has a
      * maker: the user the file names, or the one who created it here.
      */
-    private void requireMarketMaker(Event event) {
+    private void requireMarketMaker(Event event, User user) {
         User marketMaker = eventManager.requireMarketMaker(event.getId());
-        User user = requireSelectedUser();
         if (!user.getName().equals(marketMaker.getName())) {
             throw new NotMarketMakerException("Only '" + marketMaker.getName()
                     + "', the market maker for event " + event.getId() + ", can close it.");

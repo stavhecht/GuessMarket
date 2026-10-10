@@ -15,6 +15,7 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableView;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -58,7 +59,7 @@ class EventsScreen extends HBox {
     /** Both panels can be emptied of rows, so the screen's height has its own floor. */
     private static final double MIN_HEIGHT = 470;
 
-    private final DesktopApp app;
+    private final Host app;
 
     // left
     private final Label eventCount = Widgets.pill("0", "count");
@@ -80,6 +81,10 @@ class EventsScreen extends HBox {
     private final HBox titleRow;
     private final Label statusSlot = Widgets.pill("", "off");
     private final Button closeEvent = Widgets.button("Close event…", "danger", "small");
+    /** Shown only while the acting user has an order waiting in the selected book. */
+    private final Button cancelOrder = Widgets.button("Cancel my last order", "small");
+    /** Names the order the button would withdraw, which changes with every order placed. */
+    private final Tooltip cancelOrderTip = new Tooltip();
 
     /** Built in {@link #buildEventList()}, which the constructor runs. */
     private Button create;
@@ -87,6 +92,8 @@ class EventsScreen extends HBox {
     private final Label marketPlaceholder = Widgets.faint("Select an event on the left.");
     private final LmsrPane lmsrPane;
     private final OrderBookPane orderBookPane;
+    /** The selected event's chat; built always, shown only where the host has one. */
+    private final ChatPane chatPane;
     private final SparkChart chart = new SparkChart(150);
     private final HBox chartLegend = Widgets.row(12);
     private final Label tradeCount = Widgets.note("");
@@ -125,12 +132,13 @@ class EventsScreen extends HBox {
     private final ChangeListener<Number> onPriceMoved = (observable, was, now) -> redrawChart();
     private EventView charted;
 
-    EventsScreen(DesktopApp app) {
+    EventsScreen(Host app) {
         super(14);
         this.app = app;
         this.lmsrPane = new LmsrPane(app);
         this.orderBookPane = new OrderBookPane(app);
-        this.titleRow = Widgets.row(8, title, number, statusSlot, Widgets.grower(), closeEvent);
+        this.chatPane = new ChatPane(app);
+        this.titleRow = Widgets.row(8, title, number, statusSlot, Widgets.grower(), cancelOrder, closeEvent);
 
         eventCount.textProperty().bind(eventTotal.asString());
         shown.textProperty().bind(shownText);
@@ -150,7 +158,7 @@ class EventsScreen extends HBox {
 
     private VBox buildEventList() {
         create = Widgets.tip(Widgets.button("Create event", "small"),
-                "Adds an event to the loaded market. You become its market maker, "
+                "Adds an event to this market, with or without a file behind it. You become its market maker, "
                         + "so an order book's initial investment comes out of your balance.");
         create.setOnAction(action -> app.createEvent());
         create.setDisable(true);    // until a market is loaded and somebody is acting
@@ -219,6 +227,15 @@ class EventsScreen extends HBox {
             }
         });
 
+        cancelOrder.setMinWidth(Region.USE_PREF_SIZE);
+        cancelOrder.setTooltip(cancelOrderTip);
+        cancelOrder.setOnAction(action -> {
+            if (selectedId != null) {
+                int eventId = selectedId;
+                app.perform(() -> MarketData.describe(app.engine().cancelLastOrder(eventId)));
+            }
+        });
+
         market.getChildren().addAll(marketPlaceholder, lmsrPane, orderBookPane);
         market.setAlignment(Pos.TOP_LEFT);
 
@@ -255,7 +272,10 @@ class EventsScreen extends HBox {
         VBox participationPanel = Widgets.framed(participationHead, participations, footer);
         VBox.setVgrow(participations, Priority.ALWAYS);
 
-        VBox body = new VBox(12, market, chartPanel, participationPanel);
+        chatPane.setVisible(app.hasChat());
+        chatPane.setManaged(app.hasChat());
+
+        VBox body = new VBox(12, market, chartPanel, participationPanel, chatPane);
         body.getStyleClass().add("panel-body");
 
         // An order-book ladder is a good deal taller than a pair of LMSR cards, and the
@@ -350,6 +370,7 @@ class EventsScreen extends HBox {
         show(orderBookPane, false);
         // Only the event's Market Maker can close it, so nobody else is shown the button.
         show(closeEvent, MarketData.canClose(app.engine(), event));
+        show(cancelOrder, false);
 
         if (event == null) {
             title.setText("No event selected");
@@ -368,6 +389,9 @@ class EventsScreen extends HBox {
             methodNote.setText("");
             tradeCountText.set("");
             bindChartTo(null);
+            if (app.hasChat()) {
+                chatPane.show(null);
+            }
             return;
         }
 
@@ -396,6 +420,10 @@ class EventsScreen extends HBox {
             OrderBookStatusView status = app.engine().getOrderBookStatus(event.id());
             orderBookPane.show(event, status);
             show(orderBookPane, true);
+            String mine = MarketData.lastOwnOrder(status, app.engine().getCurrentUserName());
+            show(cancelOrder, mine != null);
+            cancelOrderTip.setText(mine == null ? "" : "Withdraws order " + mine
+                    + " and gives back what it set aside.");
             lines = MarketData.lines(status);
             methodNote.setText("d = " + trimmed(status.baseValue())
                     + (status.allowMint() ? " · minting allowed" : " · no minting"));
@@ -410,6 +438,9 @@ class EventsScreen extends HBox {
         participationTotal.set(lines.size());
         tradeCountText.set(lines.size() == 1 ? "1 trade" : lines.size() + " trades");
         bindChartTo(event);
+        if (app.hasChat()) {
+            chatPane.show(event);
+        }
     }
 
     /**

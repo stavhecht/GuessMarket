@@ -1,0 +1,202 @@
+package server;
+
+import api.ErrorBody;
+import api.Json;
+import com.google.gson.JsonParseException;
+import engine.exception.EngineException;
+import engine.exception.EventClosedException;
+import engine.exception.EventNotFoundException;
+import engine.exception.NotMarketMakerException;
+import engine.exception.UserNotFoundException;
+import engine.service.MarketEngine;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.concurrent.locks.Lock;
+
+/**
+ * What every endpoint has in common: the engine, the lock around it, the logged-in user,
+ * JSON in and out, and one place where an engine refusal becomes an HTTP status.
+ *
+ * <p>The idea is {@code ConsoleApp.dispatch} catching {@code EngineException} in exactly
+ * one place: a servlet says what to call, and {@link #read} / {@link #write} do the rest.
+ * Read takes the shared lock, write the exclusive one; nothing in a servlet touches the
+ * engine outside one of the two.
+ *
+ * <p>The status for a refusal follows the exception the engine threw, which is the only
+ * thing that tells them apart (they all carry a message and nothing else): a thing that
+ * does not exist is 404, a thing only the market maker may do is 403, a thing already
+ * done is 409, and anything else the user typed wrong is 400. The body is always an
+ * {@link ErrorBody} with the engine's own sentence, which the client shows unchanged.
+ */
+abstract class ApiServlet extends HttpServlet {
+
+    private static final String JSON = "application/json";
+
+    /** One engine call, made while the right lock is held. */
+    @FunctionalInterface
+    interface Call<T> {
+        T on(MarketEngine engine, String user) throws IOException;
+    }
+
+    /** Runs {@code call} under the read lock and answers with what it returns. */
+    protected final void read(HttpServletRequest req, HttpServletResponse resp, Call<?> call)
+            throws IOException {
+        answer(req, resp, MarketContext.lock(getServletContext()).readLock(), call);
+    }
+
+    /** Runs {@code call} under the write lock and answers with what it returns. */
+    protected final void write(HttpServletRequest req, HttpServletResponse resp, Call<?> call)
+            throws IOException {
+        answer(req, resp, MarketContext.lock(getServletContext()).writeLock(), call);
+    }
+
+    private void answer(HttpServletRequest req, HttpServletResponse resp, Lock lock, Call<?> call)
+            throws IOException {
+        String user = requireUser(req);
+        if (user == null) {
+            fail(resp, HttpServletResponse.SC_UNAUTHORIZED, "Log in first.", "NotLoggedIn");
+            return;
+        }
+        Object result;
+        lock.lock();
+        try {
+            result = call.on(MarketContext.engine(getServletContext()), user);
+        } catch (EngineException e) {
+            fail(resp, statusFor(e), e.getMessage(), e.getClass().getSimpleName());
+            return;
+        } catch (IllegalArgumentException e) {
+            // A parameter or body this class could not read: the caller's, not the server's.
+            fail(resp, HttpServletResponse.SC_BAD_REQUEST, e.getMessage(), e.getClass().getSimpleName());
+            return;
+        } catch (RuntimeException e) {
+            fail(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    e.getMessage() == null ? e.toString() : e.getMessage(), e.getClass().getSimpleName());
+            return;
+        } finally {
+            lock.unlock();
+        }
+        if (result == null) {
+            resp.setStatus(HttpServletResponse.SC_NO_CONTENT);
+        } else {
+            ok(resp, result);
+        }
+    }
+
+    /** The logged-in user's name, or {@code null} if this session has none. */
+    protected static String requireUser(HttpServletRequest req) {
+        HttpSession session = req.getSession(false);
+        return session == null ? null : (String) session.getAttribute(MarketContext.USER);
+    }
+
+    static int statusFor(EngineException e) {
+        if (e instanceof EventNotFoundException || e instanceof UserNotFoundException) {
+            return HttpServletResponse.SC_NOT_FOUND;
+        }
+        if (e instanceof NotMarketMakerException) {
+            return HttpServletResponse.SC_FORBIDDEN;
+        }
+        if (e instanceof EventClosedException) {
+            return HttpServletResponse.SC_CONFLICT;
+        }
+        return HttpServletResponse.SC_BAD_REQUEST;
+    }
+
+    /**
+     * The request body as one of the {@code api} records. Event names may be non-ASCII.
+     *
+     * <p>Nothing here assumes the body came from {@code RemoteMarket}: anything can post to
+     * these paths. A body that is not JSON, or whose fields are the wrong type for the record
+     * (a word where a number goes, a fraction where a whole number goes), is the caller's
+     * mistake and reads as 400, not as Gson's stack trace under a 500.
+     */
+    protected static <T> T body(HttpServletRequest req, Class<T> type) throws IOException {
+        req.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        T parsed;
+        try {
+            parsed = Json.GSON.fromJson(req.getReader(), type);
+        } catch (JsonParseException e) {
+            throw new IllegalArgumentException("The request body is not the JSON this endpoint expects.");
+        }
+        if (parsed == null) {
+            throw new IllegalArgumentException("The request has no body.");
+        }
+        return parsed;
+    }
+
+    /**
+     * One field of a request body, refused if the body left it out.
+     *
+     * <p>This is the server's half of the validation, and the only half the engine cannot do
+     * for it: whether a value was sent at all. The engine judges every value it is handed
+     * (the range of a price, whether an option exists, who may close an event), but a field
+     * that is missing has to be stopped before it is handed anything, since there is no
+     * honest number to hand it.
+     */
+    protected static <T> T required(T value, String field) {
+        if (value == null) {
+            throw new IllegalArgumentException("The request is missing '" + field + "'.");
+        }
+        return value;
+    }
+
+    /** An enum by its name, with the caller's mistake read as 400 rather than a stack trace. */
+    protected static <E extends Enum<E>> E named(Class<E> type, String name, String field) {
+        required(name, field);
+        try {
+            return Enum.valueOf(type, name);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("'" + name + "' is not a valid '" + field + "'; expected one of "
+                    + Arrays.toString(type.getEnumConstants()) + ".");
+        }
+    }
+
+    /**
+     * A whole-number query parameter. A missing or unreadable one is the caller's mistake,
+     * and reads as 400 rather than as a stack trace.
+     */
+    protected static int intParam(HttpServletRequest req, String name) {
+        String raw = req.getParameter(name);
+        if (raw == null) {
+            throw new IllegalArgumentException("Missing the '" + name + "' parameter.");
+        }
+        try {
+            return Integer.parseInt(raw.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("'" + raw + "' is not a whole number for '" + name + "'.");
+        }
+    }
+
+    protected static long longParam(HttpServletRequest req, String name) {
+        String raw = req.getParameter(name);
+        if (raw == null) {
+            throw new IllegalArgumentException("Missing the '" + name + "' parameter.");
+        }
+        try {
+            return Long.parseLong(raw.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("'" + raw + "' is not a whole number for '" + name + "'.");
+        }
+    }
+
+    protected static void ok(HttpServletResponse resp, Object body) throws IOException {
+        send(resp, HttpServletResponse.SC_OK, body);
+    }
+
+    protected static void fail(HttpServletResponse resp, int status, String message, String type)
+            throws IOException {
+        send(resp, status, new ErrorBody(message, type));
+    }
+
+    private static void send(HttpServletResponse resp, int status, Object body) throws IOException {
+        resp.setStatus(status);
+        resp.setContentType(JSON);
+        resp.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        Json.GSON.toJson(body, resp.getWriter());
+    }
+}

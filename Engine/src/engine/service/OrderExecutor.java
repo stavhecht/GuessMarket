@@ -100,8 +100,20 @@ public class OrderExecutor {
         if (optionIndex < 0 || optionIndex >= Event.OPTION_COUNT) {
             throw new InvalidOrderException("Option must be 1 or " + Event.OPTION_COUNT + ".");
         }
+        // Not left to the caller: everything below branches on BUY, so a missing side would
+        // otherwise be taken for a sell.
+        if (side == null) {
+            throw new InvalidOrderException("An order must be a buy or a sell.");
+        }
         if (quantity <= 0) {
             throw new InvalidOrderException("The number of shares must be a positive whole number.");
+        }
+        // Before the range check, which NaN would pass: every comparison with it is false, so
+        // it is neither below the floor nor above the ceiling, and its worst case below is NaN
+        // too, which no balance is ever "less than". Such an order would rest with a
+        // reservation of NaN on its owner and poison every figure that sums over the book.
+        if (!Double.isFinite(price)) {
+            throw new InvalidOrderException("The price must be a number.");
         }
         // A share is worth strictly between nothing and the base value, and prices are named
         // in whole cents, so the range runs from one tick to one tick below d. The ceiling

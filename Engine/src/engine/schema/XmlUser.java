@@ -24,7 +24,8 @@ import java.util.List;
  * </GM-user>
  * }</pre>
  *
- * <p>{@code GM-mareket-maker} is spelled the way the XSD spells it; see {@link XmlOrderBook}.
+ * <p>{@code GM-mareket-maker} is spelled the way the XSD spells it, and
+ * {@code GM-market-maker} is read as well; see {@link XmlOrderBook}.
  */
 @XmlAccessorType(XmlAccessType.FIELD)
 public class XmlUser {
@@ -46,6 +47,11 @@ public class XmlUser {
     @XmlElement(name = "event")
     private List<XmlEventRef> marketMakerEvents = new ArrayList<>();
 
+    /** The same wrapper spelled correctly, which files written by hand often use; see {@link #getMarketMakerEvents}. */
+    @XmlElementWrapper(name = "GM-market-maker")
+    @XmlElement(name = "event")
+    private List<XmlEventRef> marketMakerEventsSpelledRight = new ArrayList<>();
+
     public String getName() {
         return name;
     }
@@ -54,8 +60,20 @@ public class XmlUser {
         return initialCash;
     }
 
-    /** Never {@code null}: an absent or empty {@code <GM-mareket-maker>} reads as no events. */
+    /**
+     * The events listed under either spelling, {@code <GM-mareket-maker>} or
+     * {@code <GM-market-maker>}, in that order. Never {@code null}: an absent or empty
+     * wrapper reads as no events. A file that writes both gets both lists, so an event
+     * named in each is one the loader sees twice, and refuses as such.
+     */
     public List<XmlEventRef> getMarketMakerEvents() {
-        return marketMakerEvents == null ? List.of() : marketMakerEvents;
+        List<XmlEventRef> all = new ArrayList<>();
+        if (marketMakerEvents != null) {
+            all.addAll(marketMakerEvents);
+        }
+        if (marketMakerEventsSpelledRight != null) {
+            all.addAll(marketMakerEventsSpelledRight);
+        }
+        return all;
     }
 }

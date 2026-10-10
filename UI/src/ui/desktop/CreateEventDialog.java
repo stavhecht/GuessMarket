@@ -2,7 +2,7 @@ package ui.desktop;
 
 import engine.dto.EventView;
 import engine.model.CommissionMethod;
-import engine.service.MarketEngine;
+import engine.service.Market;
 import javafx.event.ActionEvent;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
@@ -21,7 +21,7 @@ import java.util.List;
 
 /**
  * The form behind the Events screen's Create button: an event described the way the XSD
- * describes one, for the user who is acting to add to the market already loaded.
+ * describes one, for the user who is acting to add to the market, whether a file filled it or not.
  *
  * <p>Nothing here decides whether an event is legal. The form reads what was typed, turns the
  * numbers into numbers, and calls the engine, which owns every rule, the same rules
@@ -33,7 +33,7 @@ import java.util.List;
  * the foot of the window instead of closing it: a mistyped figure is corrected where it was
  * typed rather than retyping the whole form. That is why the engine is handed to the dialog
  * rather than a command handed back to {@code DesktopApp}; what it returns is the sentence
- * describing the event it did create, which {@code DesktopApp.perform} reports and redraws
+ * describing the event it did create, which {@code Shell.perform} reports and redraws
  * around exactly like any other command.
  *
  * <p>Whoever creates an event becomes its Market Maker. For an order book that means paying
@@ -78,7 +78,7 @@ class CreateEventDialog extends Dialog<String> {
     /** What the engine did once it accepted the form: the dialog's result. */
     private String outcome;
 
-    CreateEventDialog(String creator, MarketEngine engine) {
+    CreateEventDialog(String creator, Market engine) {
         setTitle("Create event");
         setHeaderText("A new market, run by " + creator);
 
@@ -190,20 +190,20 @@ class CreateEventDialog extends Dialog<String> {
      * {@code IllegalArgumentException} carrying a sentence written to be read, which is why
      * the caller catches the pair of them as one {@code RuntimeException}.
      */
-    private String create(MarketEngine engine) {
+    private String create(Market engine) {
         int commissionPercent =
-                DesktopApp.readWholeNumber(commission.getText(), "commission percentage", 0);
+                Shell.readInt(commission.getText(), "commission percentage");
         CommissionMethod when = onClose.isSelected()
                 ? CommissionMethod.ON_CLOSE : CommissionMethod.PER_PURCHASE;
         List<String> options = List.of(optionA.getText(), optionB.getText());
 
         EventView made = lmsrMethod.isSelected()
                 ? engine.createLmsrEvent(name.getText(), description.getText(), commissionPercent,
-                        when, options, DesktopApp.readPositiveDouble(b.getText(), "liquidity b"))
+                        when, options, Shell.readDouble(b.getText(), "liquidity b"))
                 : engine.createOrderBookEvent(name.getText(), description.getText(), commissionPercent,
                         when, options,
-                        DesktopApp.readWholeNumber(initialInvestment.getText(), "initial investment", 0),
-                        DesktopApp.readWholeNumber(baseValue.getText(), "base value", 1),
+                        Shell.readInt(initialInvestment.getText(), "initial investment"),
+                        Shell.readInt(baseValue.getText(), "base value"),
                         allowMint.isSelected());
 
         return String.format("Created event %d, '%s'. You are its market maker.",

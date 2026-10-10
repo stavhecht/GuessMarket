@@ -96,6 +96,9 @@
 
                 <Button fx:id="saveSession" text="Save session" minWidth="-Infinity"/>
                 <Button fx:id="loadSession" text="Load session" minWidth="-Infinity"/>
+                <!-- The client's, and never shown here: it logs a user out of the server.
+                     ClientApp shows it and hides the two session buttons above instead. -->
+                <Button fx:id="logout" text="Log out" minWidth="-Infinity" visible="false" managed="false"/>
                 <Button fx:id="themeToggle" text="Light" styleClass="tiny" minWidth="-Infinity"/>
             </children>
         </HBox>
@@ -432,6 +435,8 @@
 
                 <!-- ============================================================
                      Real Tab, stand-in content, replaced by the generated UsersScreen.
+                     The client retitles it "Account" at start-up (Shell.start), since
+                     it shows the one logged-in account there rather than a list.
                      ============================================================ -->
                 <Tab fx:id="usersTab" text="Users" closable="false">
                     <content>
@@ -500,6 +505,7 @@
                                                                                 <children>
                                                                                     <Label text="ACCOUNT BALANCE" styleClass="h-tiny"/>
                                                                                     <Label fx:id="balance" text="–" styleClass="num-big"/>
+                                                                                    <Button fx:id="loadFunds" text="Load funds…" styleClass="small" minWidth="-Infinity"/>
                                                                                 </children>
                                                                             </VBox>
                                                                             <VBox spacing="6" styleClass="card" minWidth="210">
@@ -753,9 +759,9 @@
                                                                                             </HBox>
                                                                                             <HBox spacing="8" alignment="CENTER_LEFT">
                                                                                                 <children>
-                                                                                                    <Label text="Balance after" styleClass="kv-key"/>
+                                                                                                    <Label text="Available after" styleClass="kv-key"/>
                                                                                                     <Region HBox.hgrow="ALWAYS"/>
-                                                                                                    <Label fx:id="balanceAfter" text="–" styleClass="kv-val"/>
+                                                                                                    <Label fx:id="availableAfter" text="–" styleClass="kv-val"/>
                                                                                                 </children>
                                                                                             </HBox>
                                                                                         </children>

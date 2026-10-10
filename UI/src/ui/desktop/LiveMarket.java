@@ -6,7 +6,7 @@ import engine.dto.OptionBookView;
 import engine.dto.OptionView;
 import engine.dto.OrderBookStatusView;
 import engine.dto.UserView;
-import engine.service.MarketEngine;
+import engine.service.Market;
 import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleDoubleProperty;
@@ -19,8 +19,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The observable mirror the screens follow: a property per option price, per event account
- * and per user balance, re-read from the engine on every {@link DesktopApp#refresh()}.
+ * The observable mirror the screens follow: a property per option price, per event account,
+ * and per user balance and available cash, re-read from the engine on every
+ * {@link Shell#refresh()}.
  *
  * <p>The engine is plain Java and says nothing when it changes: it is asked, never
  * subscribed to. This class is the adapter that gives the UI something to
@@ -53,7 +54,7 @@ import java.util.Map;
  *       window opened. See {@link #balanceHistory}.
  * </ul>
  */
-class LiveMarket {
+public class LiveMarket {
 
     /**
      * One point of a balance timeline: what the account held, and when that became true.
@@ -85,6 +86,9 @@ class LiveMarket {
     private final Map<Integer, DoubleProperty> commissions = new LinkedHashMap<>();
 
     private final Map<String, DoubleProperty> balances = new LinkedHashMap<>();
+
+    /** The part of each balance not promised to a waiting buy order. */
+    private final Map<String, DoubleProperty> available = new LinkedHashMap<>();
 
     /** Every balance this user has held since the window opened, oldest first. */
     private final Map<String, List<BalancePoint>> balanceHistory = new LinkedHashMap<>();
@@ -128,6 +132,14 @@ class LiveMarket {
     }
 
     /**
+     * What {@code userName} can still spend: the balance less what their waiting buy orders
+     * have set aside. This is the figure every purchase and order is checked against.
+     */
+    DoubleProperty available(String userName) {
+        return available.computeIfAbsent(userName, name -> new SimpleDoubleProperty());
+    }
+
+    /**
      * The balance timeline behind the Users screen's chart, oldest first.
      *
      * <p><b>It begins at the account's initial cash</b>, {@code UserView.initialCash}, what
@@ -153,7 +165,7 @@ class LiveMarket {
      *
      * @param engine already checked by the caller to have a file loaded
      */
-    void sync(MarketEngine engine) {
+    void sync(Market engine) {
         for (EventView event : engine.getEvents()) {
             // One status per event, read once: it carries the prices, the account and the
             // commission between them, and asking the engine again for each would be three
@@ -196,6 +208,7 @@ class LiveMarket {
                 history.add(new BalancePoint(user.balance(), Instant.now()));
             }
             held.set(user.balance());
+            available(user.name()).set(user.availableCash());
         }
     }
 
@@ -214,12 +227,13 @@ class LiveMarket {
      * this immediately before a {@code refresh()}, and that refresh re-points every
      * subscription there is.
      */
-    void reset() {
+    public void reset() {
         prices.clear();
         lastPrices.clear();
         accounts.clear();
         commissions.clear();
         balances.clear();
+        available.clear();
         balanceHistory.clear();
     }
 }

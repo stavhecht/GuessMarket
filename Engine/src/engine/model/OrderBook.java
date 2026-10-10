@@ -84,6 +84,16 @@ public class OrderBook implements Serializable {
         asks.get(optionIndex).removeIf(Order::isExhausted);
     }
 
+    /**
+     * Takes one waiting order out of its queue, because its owner withdrew it. Releasing
+     * what it had set aside is the caller's, as reserving it was.
+     *
+     * @return whether the order was in the book at all
+     */
+    public boolean remove(Order order) {
+        return queueFor(order.getSide(), order.getOptionIndex()).remove(order);
+    }
+
     /** Everything still waiting, across both options and both sides; settlement clears the lot. */
     public List<Order> restingOrders() {
         List<Order> all = new ArrayList<>();

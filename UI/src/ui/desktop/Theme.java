@@ -42,7 +42,7 @@ import java.util.regex.Pattern;
  * the design leans on them (the small caps labels, and Neon's shouting buttons) are
  * uppercased in Java by {@link Widgets} instead.
  */
-enum Theme {
+public enum Theme {
 
     LIGHT("Light", "theme-light", "Menlo"),
 

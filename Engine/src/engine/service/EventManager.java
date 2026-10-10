@@ -1,5 +1,6 @@
 package engine.service;
 
+import engine.exception.DuplicateUserException;
 import engine.exception.EventNotFoundException;
 import engine.exception.InvalidEventException;
 import engine.exception.UserNotFoundException;
@@ -66,6 +67,20 @@ public class EventManager implements Serializable {
             throw new InvalidEventException("There is already an event with id " + event.getId() + ".");
         }
         events.put(event.getId(), event);
+    }
+
+    /**
+     * Adds a user who arrived after the file: a client logging in. The loader refuses a
+     * file with two users whose names differ only in case, and the same rule holds here,
+     * against everyone already in the market, so "Rain" cannot join a market with "rain".
+     */
+    public void addUser(User user) {
+        for (String name : users.keySet()) {
+            if (name.equalsIgnoreCase(user.getName())) {
+                throw new DuplicateUserException("There is already a user named '" + name + "'.");
+            }
+        }
+        users.put(user.getName(), user);
     }
 
     /** The next free id: one past the highest in use, so it can never collide. */
