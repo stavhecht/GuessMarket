@@ -1,6 +1,7 @@
 package client;
 
 import api.CancelOrderRequest;
+import api.ChatRequest;
 import api.CloseRequest;
 import api.CreateEventRequest;
 import api.Endpoints;
@@ -12,6 +13,7 @@ import api.MarketSnapshot;
 import api.OrderRequest;
 import api.ParticipateRequest;
 import engine.dto.CancelResult;
+import engine.dto.ChatMessage;
 import engine.dto.EventStatusView;
 import engine.dto.EventView;
 import engine.dto.OrderBookStatusView;
@@ -71,6 +73,14 @@ import java.util.function.Consumer;
  * exactly as it would have painted the local engine's. A server that cannot be reached
  * is reported the same way.
  *
+ * <p><b>The chat is read the same way, one event at a time.</b> The snapshot carries no
+ * chat, since every client would then download every event's whole conversation twice a
+ * second. Instead this keeps a copy of each chat the window has opened, fetched whole the
+ * first time it is asked for, and the poller asks the server only for what came after the
+ * last message held, and only for the event the window is showing ({@link #chatWatched}).
+ * A new line therefore arrives at every other window on its next poll, and in the poster's
+ * own at once, because posting fetches before it returns.
+ *
  * <p>The session is the cookie Tomcat sets on login, kept by a {@link CookieJar} of one
  * host, so this object is one logged-in client and nothing about who it is has to be
  * repeated on each request.
@@ -96,6 +106,18 @@ public class RemoteMarket implements Market {
     private volatile String snapshotJson;
     private volatile String userName;
     private Thread poller;
+
+    /** How many messages of one event's chat this window holds; the server keeps as many. */
+    private static final int CHAT_KEPT = 500;
+
+    /** Each opened event's chat, oldest first, replaced whole (never edited) when it grows. */
+    private final Map<Integer, List<ChatMessage>> chats = new ConcurrentHashMap<>();
+
+    /** The event whose chat is on screen, and so the one the poller keeps up to date. */
+    private volatile Integer chatWatched;
+
+    /** Held while a chat is fetched and merged, so a poll and a post cannot both append it. */
+    private final Object chatLock = new Object();
 
     /**
      * @param base the web application's address, e.g. {@code http://localhost:8080/GuessMarket}
@@ -140,6 +162,8 @@ public class RemoteMarket implements Market {
         userName = null;
         snapshot = null;
         snapshotJson = null;
+        chats.clear();
+        chatWatched = null;
     }
 
     /** Sends an events file up; every event in it joins the market with this user as its maker. */
@@ -192,7 +216,12 @@ public class RemoteMarket implements Market {
                     return;
                 }
                 try {
-                    if (reload()) {
+                    boolean changed = reload();
+                    Integer watching = chatWatched;
+                    if (watching != null && fetchChat(watching)) {
+                        changed = true;
+                    }
+                    if (changed) {
                         Platform.runLater(onChanged);
                     }
                 } catch (EngineException e) {
@@ -291,6 +320,59 @@ public class RemoteMarket implements Market {
         return call(new Request.Builder().url(url).get().build(), PurchaseQuote.class);
     }
 
+    /**
+     * An event's chat, out of this window's copy; asking is also what makes it the chat the
+     * poller follows. The first time an event is asked about its chat is fetched here, on the
+     * calling thread, so a chat opens full rather than empty for a poll; after that this
+     * costs nothing. A server out of reach at that moment costs an empty chat until the next
+     * poll, not an error, because the caller is a redraw.
+     */
+    @Override
+    public List<ChatMessage> getChatMessages(int eventId, long afterId) {
+        chatWatched = eventId;
+        if (!chats.containsKey(eventId)) {
+            try {
+                fetchChat(eventId);
+            } catch (EngineException unreachable) {
+                return List.of();
+            }
+        }
+        List<ChatMessage> newer = new ArrayList<>();
+        for (ChatMessage message : chats.getOrDefault(eventId, List.of())) {
+            if (message.id() > afterId) {
+                newer.add(message);
+            }
+        }
+        return newer;
+    }
+
+    /**
+     * Asks the server for whatever is newer than the last message held for {@code eventId}
+     * and adds it to the copy.
+     *
+     * @return whether anything new arrived
+     */
+    private boolean fetchChat(int eventId) {
+        synchronized (chatLock) {
+            List<ChatMessage> held = chats.getOrDefault(eventId, List.of());
+            long last = held.isEmpty() ? 0 : held.get(held.size() - 1).id();
+            HttpUrl url = HttpUrl.get(base + Endpoints.CHAT).newBuilder()
+                    .addQueryParameter(Endpoints.PARAM_ID, String.valueOf(eventId))
+                    .addQueryParameter(Endpoints.PARAM_AFTER, String.valueOf(last))
+                    .build();
+            List<ChatMessage> arrived = call(new Request.Builder().url(url).get().build(),
+                    listOf(ChatMessage.class));
+            if (arrived.isEmpty()) {
+                chats.putIfAbsent(eventId, List.of());
+                return false;
+            }
+            List<ChatMessage> grown = new ArrayList<>(held);
+            grown.addAll(arrived);
+            chats.put(eventId, List.copyOf(grown.subList(Math.max(0, grown.size() - CHAT_KEPT), grown.size())));
+            return true;
+        }
+    }
+
     /** The logged-in user's own account, out of the snapshot; {@code null} before the first fetch. */
     public UserView account() {
         MarketSnapshot now = snapshot;
@@ -336,6 +418,17 @@ public class RemoteMarket implements Market {
                 CancelResult.class);
         reload();
         return result;
+    }
+
+    /**
+     * Posts a line, then fetches the chat rather than the market: a message moves no money,
+     * and fetching it before returning is what puts it in the refresh that follows.
+     */
+    @Override
+    public ChatMessage postChatMessage(int eventId, String text) {
+        ChatMessage posted = call(post(Endpoints.CHAT, new ChatRequest(eventId, text)), ChatMessage.class);
+        fetchChat(eventId);
+        return posted;
     }
 
     @Override

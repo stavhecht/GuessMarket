@@ -542,6 +542,12 @@ public abstract class Shell extends Application implements Host {
         report("Accounts in this market are opened by logging in.", true);
     }
 
+    /** No chat by default: only a window connected to other people has anyone to talk to. */
+    @Override
+    public boolean hasChat() {
+        return false;
+    }
+
     /** A sum as the screens write it, for a subclass's own label in the bar. */
     protected static String money(double amount) {
         return Widgets.money(amount);

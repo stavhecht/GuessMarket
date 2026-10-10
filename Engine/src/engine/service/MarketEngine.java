@@ -1,6 +1,7 @@
 package engine.service;
 
 import engine.dto.CancelResult;
+import engine.dto.ChatMessage;
 import engine.dto.EventStatusView;
 import engine.dto.EventView;
 import engine.dto.FillView;
@@ -19,6 +20,7 @@ import engine.exception.InsufficientFundsException;
 import engine.exception.InvalidAmountException;
 import engine.exception.InvalidEventException;
 import engine.exception.InvalidFileException;
+import engine.exception.InvalidMessageException;
 import engine.exception.InvalidOptionException;
 import engine.exception.InvalidOrderException;
 import engine.exception.InvalidShareAmountException;
@@ -88,6 +90,9 @@ public class MarketEngine implements Market {
     private final LmsrCalculator lmsr = new LmsrCalculator();
     private final XmlEventLoader loader = new XmlEventLoader();
     private final OrderExecutor executor = new OrderExecutor();
+
+    /** What people have said about each event; talk about the market, not state of it. */
+    private final ChatLog chat = new ChatLog();
     private boolean fileLoaded =  false;
 
     /**
@@ -115,6 +120,7 @@ public class MarketEngine implements Market {
         // refused a file where one of them could not afford what they run.
         eventManager.applyInitialSubsidies();
         eventManager.applyInitialAllocations();
+        chat.clear();             // event ids are the file's, and mean other events now
         currentUserName = null;   // the new file has its own users
         fileLoaded = true;
     }
@@ -444,6 +450,7 @@ public class MarketEngine implements Market {
             // maker must leave the current one untouched, like any other rejected file.
             restored.requireEveryEventHasAMarketMaker();
             eventManager = restored;
+            chat.clear();
             currentUserName = null;   // the restored session has its own users
             restoredUiState = readUiState(stream);
             fileLoaded = true;
@@ -773,6 +780,67 @@ public class MarketEngine implements Market {
                 order.getFilled(),
                 order.getRemaining(),
                 fills);
+    }
+
+    // --- chat ---
+
+    /**
+     * Posts one line to an event's chat as the selected user, for everyone in the market to read.
+     *
+     * @see #postChatMessage(String, int, String)
+     */
+    @Override
+    public ChatMessage postChatMessage(int eventId, String text) {
+        requireFileLoaded();
+        return postChatMessageAs(requireSelectedUser(), eventId, text);
+    }
+
+    /**
+     * {@link #postChatMessage(int, String)} as a named user, for a server acting on a
+     * client's behalf. The author is the name the engine knows, not anything in the request,
+     * so nobody can post as somebody else.
+     *
+     * <p>A closed event can still be talked about: the chat is how people discuss the
+     * outcome, and nothing in it moves money.
+     *
+     * @throws engine.exception.EventNotFoundException if there is no such event
+     * @throws InvalidMessageException if the text is empty after trimming, longer than
+     *                                 {@link #CHAT_MAX_LENGTH}, or more than one line
+     */
+    public ChatMessage postChatMessage(String userName, int eventId, String text) {
+        requireFileLoaded();
+        return postChatMessageAs(eventManager.getUser(userName), eventId, text);
+    }
+
+    private ChatMessage postChatMessageAs(User author, int eventId, String text) {
+        eventManager.getEvent(eventId);     // throws for an event that does not exist
+        String line = text == null ? "" : text.strip();
+        if (line.isEmpty()) {
+            throw new InvalidMessageException("A message needs some text.");
+        }
+        if (line.length() > CHAT_MAX_LENGTH) {
+            throw new InvalidMessageException("A message can be at most " + CHAT_MAX_LENGTH
+                    + " characters, not " + line.length() + ".");
+        }
+        // One line of text: a line break or a control character would let one message pass
+        // itself off as several, or as somebody else's line beneath it.
+        if (line.chars().anyMatch(Character::isISOControl)) {
+            throw new InvalidMessageException("A message must be a single line of text.");
+        }
+        return chat.post(eventId, author.getName(), line);
+    }
+
+    /**
+     * An event's chat, oldest first: every message with an id above {@code afterId}, so 0 is
+     * the whole of what is kept and the last id seen is "only what is new".
+     *
+     * @throws engine.exception.EventNotFoundException if there is no such event
+     */
+    @Override
+    public List<ChatMessage> getChatMessages(int eventId, long afterId) {
+        requireFileLoaded();
+        eventManager.getEvent(eventId);
+        return chat.after(eventId, Math.max(0, afterId));
     }
 
     /**

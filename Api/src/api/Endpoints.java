@@ -37,11 +37,15 @@ public final class Endpoints {
     public static final String CANCEL_ORDER = "/api/events/order/cancel";
     public static final String CLOSE = "/api/events/close";
     public static final String UPLOAD = "/api/events/upload";
+    /** GET an event's chat after a given message; POST one line to it, from a {@link ChatRequest}. */
+    public static final String CHAT = "/api/events/chat";
 
     /** The query parameters the GET endpoints read. */
     public static final String PARAM_ID = "id";
     public static final String PARAM_OPTION = "option";
     public static final String PARAM_SHARES = "shares";
+    /** The chat's "only what is newer than this message id". */
+    public static final String PARAM_AFTER = "after";
 
     /** The multipart part the events file arrives in. */
     public static final String UPLOAD_PART = "file";

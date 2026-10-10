@@ -71,6 +71,26 @@
     -gm-down: #B24427;
     -gm-down-bg: #FAEDE8;
     -gm-shadow: rgba(16, 24, 32, 0.22);
+    /* The chat's fifteen author colours: hues 24 degrees apart, in the order that halves
+       the wheel, then quarters it, then eighths it (0, 8, 4, 12, 2, ... of the fifteen), so
+       the first few people to join are as far apart as fifteen hues allow and any seven
+       are at least 48 degrees apart. Each theme restates the set at a lightness that reads
+       on its own surface. */
+    -gm-chat-0: #A11717;
+    -gm-chat-1: #1785A1;
+    -gm-chat-2: #4EA117;
+    -gm-chat-3: #8517A1;
+    -gm-chat-4: #A18517;
+    -gm-chat-5: #1717A1;
+    -gm-chat-6: #17A14E;
+    -gm-chat-7: #A1174E;
+    -gm-chat-8: #A14E17;
+    -gm-chat-9: #174EA1;
+    -gm-chat-10: #17A117;
+    -gm-chat-11: #A11785;
+    -gm-chat-12: #85A117;
+    -gm-chat-13: #4E17A1;
+    -gm-chat-14: #17A185;
 
     -fx-background-color: -gm-bg;
     -fx-font-family: 'System';
@@ -103,6 +123,21 @@
     -gm-down: #D97757;
     -gm-down-bg: #33201A;
     -gm-shadow: rgba(0, 0, 0, 0.45);
+    -gm-chat-0: #E56C6C;
+    -gm-chat-1: #6CCDE5;
+    -gm-chat-2: #9CE56C;
+    -gm-chat-3: #CD6CE5;
+    -gm-chat-4: #E5CD6C;
+    -gm-chat-5: #6C6CE5;
+    -gm-chat-6: #6CE59C;
+    -gm-chat-7: #E56C9C;
+    -gm-chat-8: #E59C6C;
+    -gm-chat-9: #6C9CE5;
+    -gm-chat-10: #6CE56C;
+    -gm-chat-11: #E56CCD;
+    -gm-chat-12: #CDE56C;
+    -gm-chat-13: #9C6CE5;
+    -gm-chat-14: #6CE5CD;
 }
 
 .theme-neon {
@@ -124,6 +159,21 @@
     -gm-down: #FF6B3D;
     -gm-down-bg: #3A1015;
     -gm-shadow: rgba(255, 47, 208, 0.35);
+    -gm-chat-0: #FF5252;
+    -gm-chat-1: #52DCFF;
+    -gm-chat-2: #97FF52;
+    -gm-chat-3: #DC52FF;
+    -gm-chat-4: #FFDC52;
+    -gm-chat-5: #5252FF;
+    -gm-chat-6: #52FF97;
+    -gm-chat-7: #FF5297;
+    -gm-chat-8: #FF9752;
+    -gm-chat-9: #5297FF;
+    -gm-chat-10: #52FF52;
+    -gm-chat-11: #FF52DC;
+    -gm-chat-12: #DCFF52;
+    -gm-chat-13: #9752FF;
+    -gm-chat-14: #52FFDC;
 }
 
 /* ---------- foundations ---------- */
@@ -536,6 +586,27 @@
     -fx-font-family: 'Menlo';
     -fx-font-size: 10.5px; -fx-text-fill: -gm-tx-3;
 }
+/* ---------- chat ---------- */
+
+.chat-lines { -fx-background-color: -gm-surface; }
+.chat-author { -fx-font-size: 12px; -fx-font-weight: bold; }
+.chat-c0  { -fx-text-fill: -gm-chat-0; }
+.chat-c1  { -fx-text-fill: -gm-chat-1; }
+.chat-c2  { -fx-text-fill: -gm-chat-2; }
+.chat-c3  { -fx-text-fill: -gm-chat-3; }
+.chat-c4  { -fx-text-fill: -gm-chat-4; }
+.chat-c5  { -fx-text-fill: -gm-chat-5; }
+.chat-c6  { -fx-text-fill: -gm-chat-6; }
+.chat-c7  { -fx-text-fill: -gm-chat-7; }
+.chat-c8  { -fx-text-fill: -gm-chat-8; }
+.chat-c9  { -fx-text-fill: -gm-chat-9; }
+.chat-c10 { -fx-text-fill: -gm-chat-10; }
+.chat-c11 { -fx-text-fill: -gm-chat-11; }
+.chat-c12 { -fx-text-fill: -gm-chat-12; }
+.chat-c13 { -fx-text-fill: -gm-chat-13; }
+.chat-c14 { -fx-text-fill: -gm-chat-14; }
+.chat-text { -fx-font-size: 12.5px; -fx-text-fill: -gm-tx; }
+
 /*noinspection CssInvalidFunction*/
 .spread-row {
     -fx-padding: 0 10 0 10; -fx-min-height: 22; -fx-pref-height: 22;

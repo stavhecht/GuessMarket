@@ -92,6 +92,8 @@ class EventsScreen extends HBox {
     private final Label marketPlaceholder = Widgets.faint("Select an event on the left.");
     private final LmsrPane lmsrPane;
     private final OrderBookPane orderBookPane;
+    /** The selected event's chat; built always, shown only where the host has one. */
+    private final ChatPane chatPane;
     private final SparkChart chart = new SparkChart(150);
     private final HBox chartLegend = Widgets.row(12);
     private final Label tradeCount = Widgets.note("");
@@ -135,6 +137,7 @@ class EventsScreen extends HBox {
         this.app = app;
         this.lmsrPane = new LmsrPane(app);
         this.orderBookPane = new OrderBookPane(app);
+        this.chatPane = new ChatPane(app);
         this.titleRow = Widgets.row(8, title, number, statusSlot, Widgets.grower(), cancelOrder, closeEvent);
 
         eventCount.textProperty().bind(eventTotal.asString());
@@ -269,7 +272,10 @@ class EventsScreen extends HBox {
         VBox participationPanel = Widgets.framed(participationHead, participations, footer);
         VBox.setVgrow(participations, Priority.ALWAYS);
 
-        VBox body = new VBox(12, market, chartPanel, participationPanel);
+        chatPane.setVisible(app.hasChat());
+        chatPane.setManaged(app.hasChat());
+
+        VBox body = new VBox(12, market, chartPanel, participationPanel, chatPane);
         body.getStyleClass().add("panel-body");
 
         // An order-book ladder is a good deal taller than a pair of LMSR cards, and the
@@ -383,6 +389,9 @@ class EventsScreen extends HBox {
             methodNote.setText("");
             tradeCountText.set("");
             bindChartTo(null);
+            if (app.hasChat()) {
+                chatPane.show(null);
+            }
             return;
         }
 
@@ -429,6 +438,9 @@ class EventsScreen extends HBox {
         participationTotal.set(lines.size());
         tradeCountText.set(lines.size() == 1 ? "1 trade" : lines.size() + " trades");
         bindChartTo(event);
+        if (app.hasChat()) {
+            chatPane.show(event);
+        }
     }
 
     /**

@@ -51,6 +51,13 @@ public interface Host {
      */
     void addUser();
 
+    /**
+     * Whether this window has other people to talk to, and so shows each event's chat. True
+     * for a client of the server, where everyone connected reads the same conversation;
+     * false for the admin app, which is one person at one machine.
+     */
+    boolean hasChat();
+
     /** The window, for a dialog to be owned by. */
     Window window();
 

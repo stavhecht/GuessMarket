@@ -24,8 +24,8 @@ import java.util.List;
  * app shows, reading and commanding a {@link RemoteMarket} instead of a local engine and
  * none the wiser. What this class adds is only what a client has and an admin console
  * does not: a login page in front of the shell, an upload where the admin loads a file, a
- * logout where it saves a session, and a poll that brings other clients' trades into the
- * window.
+ * logout where it saves a session, a poll that brings other clients' trades into the
+ * window, and each event's chat, which the Events tab shows for a window that has one.
  */
 public class ClientApp extends Shell {
 
@@ -55,6 +55,12 @@ public class ClientApp extends Shell {
     @Override
     protected boolean singleUser() {
         return true;    // a client is whoever logged in, and the account tab is theirs
+    }
+
+    /** Everyone connected to the server reads the same chat for each event. */
+    @Override
+    public boolean hasChat() {
+        return true;
     }
 
     /**

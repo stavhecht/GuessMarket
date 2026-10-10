@@ -1,6 +1,7 @@
 package engine.service;
 
 import engine.dto.CancelResult;
+import engine.dto.ChatMessage;
 import engine.dto.EventStatusView;
 import engine.dto.EventView;
 import engine.dto.OrderBookStatusView;
@@ -28,6 +29,9 @@ import java.util.List;
  * can cause, which is the contract the screens' error handling is written against.
  */
 public interface Market {
+
+    /** The longest chat message accepted, in characters, after trimming. */
+    int CHAT_MAX_LENGTH = 500;
 
     /** Whether there is a market to show at all. */
     boolean isFileLoaded();
@@ -68,6 +72,12 @@ public interface Market {
     CancelResult cancelLastOrder(int eventId);
 
     SettlementResult closeEvent(int eventId, int winningOptionIndex);
+
+    /** Posts one line to an event's chat as the current user, for everyone to read. */
+    ChatMessage postChatMessage(int eventId, String text);
+
+    /** An event's chat messages with an id above {@code afterId}, oldest first; 0 for all. */
+    List<ChatMessage> getChatMessages(int eventId, long afterId);
 
     EventView createLmsrEvent(String name, String description, int commissionPercent,
                               CommissionMethod commissionMethod, List<String> optionNames, double b);
