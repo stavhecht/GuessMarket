@@ -17,9 +17,6 @@ import { CloseEventDialog, CreateEventDialog, LoadFundsDialog } from './screens/
  * events already on the server and those created from the form.
  */
 
-/** The server's address, as vite.config.ts was told it (GM_SERVER); only for display. */
-declare const __GM_SERVER__: string;
-
 const THEMES = ['light', 'dark', 'neon'] as const;
 type Theme = typeof THEMES[number];
 const THEME_LABEL: Record<Theme, string> = { light: 'Light', dark: 'Dark', neon: 'Neon' };
@@ -54,7 +51,7 @@ type DialogState = { kind: 'create' } | { kind: 'close'; event: EventView } | { 
  */
 function pageMarket(): RemoteMarket {
   const page = window as Window & { guessMarket?: RemoteMarket };
-  page.guessMarket ??= new RemoteMarket(__GM_SERVER__);
+  page.guessMarket ??= new RemoteMarket();
   return page.guessMarket;
 }
 

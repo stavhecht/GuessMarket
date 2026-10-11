@@ -35,6 +35,7 @@ export const POLL_MILLIS = 500;
 const CHAT_KEPT = 500;
 
 const SESSION_HEADER = 'X-GM-Session';
+const SERVER_HEADER = 'X-GM-Server';
 
 /** Everything that goes wrong comes out as one of these, with a sentence for the status line. */
 export class EngineError extends Error {
@@ -52,8 +53,12 @@ export interface BalancePoint {
 
 export class RemoteMarket {
 
-  /** The server as the user should hear it named, for messages and the status line. */
-  readonly base: string;
+  /**
+   * The server as the user should hear it named, in the status line. Whoever forwards /api
+   * (the dev server or WebClient.jar) says it on every answer, as X-GM-Server, so the page
+   * is not built for one address.
+   */
+  base = '';
 
   private snapshot: MarketSnapshot | null = null;
   private snapshotJson: string | null = null;
@@ -79,10 +84,6 @@ export class RemoteMarket {
 
   private readonly listeners = new Set<() => void>();
   private version = 0;
-
-  constructor(base: string) {
-    this.base = base;
-  }
 
   // --- being watched by React ---
 
@@ -447,12 +448,13 @@ export class RemoteMarket {
         cache: 'no-store',
       });
     } catch (error) {
-      throw new EngineError('Cannot reach the web client\'s server (is run.bat still running?): ' + messageOf(error));
+      throw new EngineError('Cannot reach the web client\'s own server (is its window still open?): ' + messageOf(error));
     }
     const session = response.headers.get(SESSION_HEADER);
     if (session) {
       this.session = session;
     }
+    this.base = response.headers.get(SERVER_HEADER) ?? this.base;
     const text = await response.text();
     if (!response.ok) {
       throw new EngineError(explain(response.status, text));

@@ -31,6 +31,8 @@ const PORT = Number(process.env.GM_PORT || 3000);
 const server = new URL(SERVER);
 const contextPath = server.pathname.replace(/\/+$/, '');   // "/GuessMarket"
 const SESSION_HEADER = 'x-gm-session';
+/** The market's address, told to the page on every answer, which names it in the status line. */
+const SERVER_HEADER = 'x-gm-server';
 
 export default defineConfig({
   plugins: [react()],
@@ -53,6 +55,7 @@ export default defineConfig({
             }
           });
           proxy.on('proxyRes', (proxyRes) => {
+            proxyRes.headers[SERVER_HEADER] = SERVER;
             const cookies = proxyRes.headers['set-cookie'];
             if (cookies) {
               for (const cookie of cookies) {
@@ -73,7 +76,7 @@ export default defineConfig({
             }
             // A refused connection comes as an AggregateError whose message is empty; its code says it.
             const reason = error.message || (error as NodeJS.ErrnoException).code || 'no answer';
-            response.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+            response.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8', [SERVER_HEADER]: SERVER });
             response.end(JSON.stringify({
               error: 'Cannot reach the server at ' + SERVER + ' (' + reason + '). Is Tomcat running with GuessMarket deployed?',
               type: 'Unreachable',
@@ -82,8 +85,5 @@ export default defineConfig({
         },
       },
     },
-  },
-  define: {
-    __GM_SERVER__: JSON.stringify(SERVER),
   },
 });
