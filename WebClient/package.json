@@ -1,0 +1,28 @@
+{
+  "name": "guessmarket-web-client",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Guess Market in the browser: a React client for the existing Tomcat server.",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "build": "vite build",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "typescript": "~5.9.3",
+    "vite": "^6.4.0"
+  }
+}
